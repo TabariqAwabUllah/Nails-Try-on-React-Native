@@ -1,97 +1,249 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Nail Try‑On (React Native)
+**Vision Camera + Roboflow Segmentation — Test App (works perfectly)**
 
-# Getting Started
+This repository contains a lightweight **testing** app that **works end‑to‑end** to detect nails in a photo and apply virtual polish colors. It uses **react-native-vision-camera** for capture, calls a **Roboflow Instance Segmentation** model for nail masks, and overlays color fills using **react-native-svg**.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+> ✅ **Note:** This project is intended for **testing**, but it **works perfectly** on supported devices.
 
-## Step 1: Start Metro
+---
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## ✨ Features
+- Capture a photo with **react-native-vision-camera**.
+- Send the image to **Roboflow** for instance segmentation.
+- Parse **polygon** masks and overlay them precisely on the original image via **SVG**.
+- Tap preset colors to apply **virtual nail polish**.
+- Simple, readable implementation that you can adapt into a full app.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+---
 
-```sh
-# Using npm
-npm start
+## 🧠 Model Details
 
-# OR using Yarn
-yarn start
+**Source & Training**
+- **Platform:** Roboflow Universe / Ulsan High School  
+- **Model:** `seg_nail_test/1`  
+- **Type:** Roboflow 3.0 **Instance Segmentation (Fast)**  
+- **Training Data:** **9,788** nail images  
+- **Pre-training:** **COCO-seg** checkpoint  
+- **Architecture:** Fast segmentation model (likely **U‑Net** or **YOLOv8**)
+
+**Get your API key:** https://universe.roboflow.com/ulsan-high-school/seg_nail_test/model/1
+
+---
+
+## 🏗️ How It Works (Pipeline)
+
+**Nail Detection → Mask Creation → Design Application**  
+1. **Capture** photo with `react-native-vision-camera`.  
+2. **Send** image (as Base64) to **Roboflow Serverless API**.  
+3. **Extract** polygon coordinates from the response.  
+4. **Create** binary masks (conceptually via `cv2.fillPoly()` in native/JS equivalent) / overlay fills with SVG polygons.  
+5. **Apply** chosen color & **display** results over the original image.
+
+> In this demo, we overlay **SVG `<Polygon>`** shapes directly using the coordinates from the API and the original image’s width/height in the `viewBox` to avoid scaling issues.
+
+---
+
+## 🧩 Tech Stack
+- **React Native**
+- **react-native-vision-camera**
+- **react-native-svg**
+- **react-native-fs**
+- **axios**
+- **react-native-dotenv** (to load `NAIL_SEG_API_KEY` via `@env`)
+
+---
+
+## 📦 Installation
+
+> Requires a React Native CLI project (not Expo).
+
+```bash
+# install dependencies
+npm install react-native-vision-camera react-native-svg react-native-fs axios
+
+# for environment variables via @env
+npm install --save-dev react-native-dotenv
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+### Babel config (`babel.config.js`)
+```js
+module.exports = {
+  presets: ['module:metro-react-native-babel-preset'],
+  plugins: [
+    ['module:react-native-dotenv', {
+      moduleName: '@env',
+      path: '.env',
+      safe: false,
+      allowUndefined: false
+    }]
+  ]
+};
 ```
 
 ### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+```bash
+cd ios && pod install && cd ..
+```
+Add usage descriptions in `ios/YourApp/Info.plist`:
+```xml
+<key>NSCameraUsageDescription</key>
+<string>We use the camera to capture your nails for try-on.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>Microphone permission requested by camera module. (Optional)</string>
 ```
 
-Then, and every time you update your native dependencies, run:
+### Android
+In `android/app/src/main/AndroidManifest.xml`:
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" /> <!-- optional -->
+<uses-feature android:name="android.hardware.camera" android:required="false" />
+```
+> `RECORD_AUDIO` is requested by the sample code; you may remove it if not needed.
 
-```sh
-bundle exec pod install
+---
+
+## 🔐 Environment Variables
+
+Create a **`.env`** at the project root:
+```
+NAIL_SEG_API_KEY=YOUR_ROBOFLOW_API_KEY
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+**Get your API key here:** https://universe.roboflow.com/ulsan-high-school/seg_nail_test/model/1
 
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+Import in code:
+```js
+import { NAIL_SEG_API_KEY } from '@env';
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+---
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## 🔌 Roboflow API (Example)
 
-## Step 3: Modify your app
+Your `imageAPI` helper (simplified example) might look like this:
+```js
+import axios from 'axios';
+import RNFS from 'react-native-fs';
+import { NAIL_SEG_API_KEY } from '@env';
 
-Now that you have successfully run the app, let's make changes!
+export async function imageAPI(imagePath) {
+  const base64 = await RNFS.readFile(imagePath, 'base64');
+  const url = `https://serverless.roboflow.com/ulsan-high-school/seg_nail_test/1?api_key=${NAIL_SEG_API_KEY}`;
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+  const res = await axios({
+    method: 'POST',
+    url,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    data: base64,            // Roboflow accepts raw base64 body for serverless endpoint
+  });
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+  return res.data;           // { image: {width, height}, predictions: [{points: [{x,y}, ...]}, ...] }
+}
+```
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+> Adjust to your exact Roboflow serverless integration and content type as needed.
 
-## Congratulations! :tada:
+---
 
-You've successfully run and modified your React Native App. :partying_face:
+## 🧱 Component Usage
 
-### Now what?
+This repo’s core UI is the `Cam` component. It:
+- Requests camera & (optionally) microphone permissions
+- Captures a photo
+- Sends it to Roboflow via `imageAPI`
+- Overlays polygon fills for detected nails using `react-native-svg`
+- Lets the user pick a color
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+**Example:**
+```jsx
+import Cam from './src/components/Cam';
 
-# Troubleshooting
+export default function App() {
+  return <Cam showCamera={true} />;
+}
+```
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+---
 
-# Learn More
+## 🖼️ Polygon Overlay Notes
 
-To learn more about React Native, take a look at the following resources:
+- The SVG uses:
+  ```jsx
+  <Svg viewBox={`0 0 ${originalImageDimensions.width} ${originalImageDimensions.height}`}>
+    <Polygon points="x1,y1 x2,y2 ..." fill={selectedColor} fillOpacity={0.7} />
+  </Svg>
+  ```
+- **Important:** Use the **original image width/height** from the Roboflow response for the `viewBox`. This ensures **1:1 alignment** between polygon coordinates and the image, avoiding scaling/offset bugs.
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+---
+
+## 📤 Expected API Response (Shape)
+
+```jsonc
+{
+  "image": { "width": 1080, "height": 1440 },
+  "predictions": [
+    {
+      "points": [
+        { "x": 123.4, "y": 456.7 },
+        { "x": 130.0, "y": 460.2 }
+        // ...
+      ]
+    }
+    // ... more nails
+  ]
+}
+```
+
+Your code maps polygons via:
+```js
+const polygons = roboflowResponse.predictions.map(pred => pred.points);
+setOriginalImageDimensions({ width: roboflowResponse.image.width, height: roboflowResponse.image.height });
+```
+
+---
+
+## 🧭 Files of Interest
+
+- `src/components/Cam.jsx` — camera capture, API call, SVG overlay, color picker
+- `src/api/API.js` — `imageAPI(imagePath)` implementation (calls Roboflow)
+
+---
+
+## 🧪 Status
+
+This app is **for testing**, but **works perfectly** on supported devices.
+
+---
+
+## 🛠️ Troubleshooting
+
+- **“No camera device found.”**  
+  Ensure a physical device is connected; emulators often lack full camera support.
+- **Permission issues**  
+  Confirm you granted **camera** (and optionally **microphone**) permissions.
+- **Polygons misaligned**  
+  Double-check you’re using the **original** image dimensions from the API in your SVG `viewBox`.
+- **Performance**  
+  Large images can be slow to upload. Consider resizing/compressing before sending.
+
+---
+
+## 🗺️ Roadmap / Ideas
+- Texture/gradient polish fills
+- Edge feathering / anti‑aliasing
+- Model upgrade & confidence thresholds
+- In‑app gallery & share
+- Real‑time preview with frame processors (Vision Camera)
+
+---
+
+## 🙏 Credits
+- **Roboflow Universe** (Ulsan High School) — model hosting & training
+- You & the open-source community 🫶
+
+---
+
+## 📄 License
+MIT (or your preferred license)
