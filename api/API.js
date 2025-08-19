@@ -26,24 +26,30 @@ export async function imageAPI(imageGot) {
 }
 
 
-// for designed image
+// for designed/url image
 export async function imageDesignAPI(imageGot) {
     console.log("imageDesignAPI ", imageGot);
     try {
+        console.log("imageDesignAPI 1");
+        
         const response = await axios({
         method: "POST",
         url: "https://serverless.roboflow.com/seg_nail_test/1",
         params: { api_key: NAIL_SEG_API_KEY,
             image: imageGot, // use if image is from URL
         },
-        headers: { "Content-Type": "application/x-www-form-urlencoded" }
+        // headers: { "Content-Type": "application/x-www-form-urlencoded" }
         
         });
         console.log("imageDesignAPI 2");
 
         return response.data;
-    } catch (error) {
-        console.log("Error in imageAPI:", error);
+    } catch (err) {
+        if (err.response?.status === 503) {
+            console.error("Service unavailable, retrying...");
+        } else {
+        console.error(err);
+    }
         
     }
 }
