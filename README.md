@@ -247,3 +247,10 @@ This app is **for testing**, but **works perfectly** on supported devices.
 
 ## 📄 License
 MIT (or your preferred license)
+
+## Author
+
+**Name:** Tabarak Awab Ullah  
+**Email:** [Tabariqawabullah@gmail.com](mailto:Tabariqawabullah@gmail.com)  
+
+If you use this project or find it helpful, feel free to reach out for collaboration, feedback, or improvements!
