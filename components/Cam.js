@@ -20,7 +20,13 @@ const Cam = ({showCamera=false}) => {
   const [processedDesigns, setProcessedDesigns] = useState([]);
   const [selectedColor, setSelectedColor] = useState('#FF1493');
   const [designMode, setDesignMode] = useState(false);
-  const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
+  // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
+  const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
+  // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
+  // const designNailImage = 'https://i.pinimg.com/736x/10/8f/6c/108f6c6d1c3ea75258e97a63bfd0b278.jpg'
+  // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
+  // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
+  // const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
 
   const [originalImageDimensions, setOriginalImageDimensions] = useState({ width: 0, height: 0 });
   const [designImageDimensions, setDesignImageDimensions] = useState({ width: 0, height: 0 });
@@ -194,34 +200,88 @@ const Cam = ({showCamera=false}) => {
       }
   };
 
+  // Transform design nail polygons to match captured nail polygon shapes with complete coverage
+  const transformDesignNailToTarget = (designNail, targetNail) => {
+      try {
+          if (!designNail || !targetNail || designNail.length === 0 || targetNail.length === 0) {
+              console.log("Invalid polygons for transformation");
+              return designNail;
+          }
+
+          // Get bounding boxes and centroids
+          const designBounds = getSimpleBounds(designNail);
+          const targetBounds = getSimpleBounds(targetNail);
+          const designCentroid = getSimpleCentroid(designNail);
+          const targetCentroid = getSimpleCentroid(targetNail);
+
+          // Calculate scale factors for complete coverage
+          const scaleX = targetBounds.width / designBounds.width;
+          const scaleY = targetBounds.height / designBounds.height;
+          
+          // Use the LARGER scale to ensure the design nail completely covers the target nail
+          const scale = Math.max(scaleX, scaleY) * 1.2; // 20% extra for complete coverage
+
+          console.log(`Transform: scale=${scale.toFixed(2)} (base: ${Math.max(scaleX, scaleY).toFixed(2)} + 20% extra)`);
+
+          // Transform each point: scale -> translate
+          const transformedPolygon = designNail.map(point => {
+              // 1. Scale the point relative to design centroid
+              const scaledX = (point.x - designCentroid.x) * scale;
+              const scaledY = (point.y - designCentroid.y) * scale;
+
+              // 2. Translate to target centroid
+              return {
+                  x: scaledX + targetCentroid.x,
+                  y: scaledY + targetCentroid.y
+              };
+          });
+
+          return transformedPolygon;
+      } catch (error) {
+          console.log("Error in transformDesignNailToTarget:", error);
+          return designNail;
+      }
+  };
+
   // Simple direct design transfer - apply individual nail designs to corresponding nails
   const simpleDesignTransfer = (designNails, targetNails, designImagePath) => {
       try {
-          console.log("Starting direct design transfer");
+          console.log("Starting direct design transfer with complete coverage");
           console.log("Design nails:", designNails.length, "Target nails:", targetNails.length);
           
           const matches = [];
           const maxMatches = Math.min(designNails.length, targetNails.length);
           
           for (let i = 0; i < maxMatches; i++) {
-              // Get bounds of the design nail for cropping
+              // Transform design nail polygon to completely cover target nail polygon
+              const transformedDesignPolygon = transformDesignNailToTarget(designNails[i], targetNails[i]);
+              
+              // Get bounds for texture mapping
               const designBounds = getSimpleBounds(designNails[i]);
               const targetBounds = getSimpleBounds(targetNails[i]);
+              const transformedBounds = getSimpleBounds(transformedDesignPolygon);
+              
+              console.log(`Nail ${i}: Design ${designNails[i].length} points → Transformed ${transformedDesignPolygon.length} points`);
+              console.log(`  Design bounds: ${designBounds.width.toFixed(1)}x${designBounds.height.toFixed(1)}`);
+              console.log(`  Target bounds: ${targetBounds.width.toFixed(1)}x${targetBounds.height.toFixed(1)}`);
+              console.log(`  Transformed bounds: ${transformedBounds.width.toFixed(1)}x${transformedBounds.height.toFixed(1)}`);
               
               matches.push({
                   designIndex: i,
                   targetIndex: i,
                   designNail: designNails[i],
                   targetNail: targetNails[i],
-                  designBounds: designBounds,  // Bounds of nail in design image
-                  targetBounds: targetBounds,  // Bounds of nail in target image
+                  transformedDesignPolygon: transformedDesignPolygon,
+                  designBounds: designBounds,
+                  targetBounds: targetBounds,
+                  transformedBounds: transformedBounds,
                   patternId: `design-nail-${i}`,
                   clipId: `clip-nail-${i}`,
                   sourceImage: designImagePath
               });
           }
           
-          console.log("Created direct matches:", matches.length);
+          console.log("Created complete coverage matches:", matches.length);
           return matches;
       } catch (error) {
           console.log("Error in simpleDesignTransfer:", error);
@@ -437,38 +497,6 @@ const Cam = ({showCamera=false}) => {
                           </ClipPath>
                       );
                   })}
-                  
-                  {/* Create patterns for each design nail that will be mapped to target nails */}
-                  {designMode && processedDesigns?.map?.((design, idx) => {
-                      if (!design || !design.designBounds || !design.targetBounds) return null;
-                      
-                      // Calculate scale factors to fit design nail to target nail
-                      const scaleX = design.targetBounds.width / design.designBounds.width;
-                      const scaleY = design.targetBounds.height / design.designBounds.height;
-                      const scale = Math.max(scaleX, scaleY); // Use max to cover the entire nail
-                      
-                      return (
-                          <Pattern 
-                              key={`pattern-${idx}`}
-                              id={`nail-pattern-${idx}`}
-                              x={design.targetBounds.minX}
-                              y={design.targetBounds.minY}
-                              width={design.targetBounds.width}
-                              height={design.targetBounds.height}
-                              patternUnits="userSpaceOnUse"
-                          >
-                              <SvgImage 
-                                  href={design.sourceImage}
-                                  // Position the image so the design nail is centered in the pattern
-                                  x={-design.designBounds.minX * scale}
-                                  y={-design.designBounds.minY * scale}
-                                  width={designImageDimensions.width * scale}
-                                  height={designImageDimensions.height * scale}
-                                  preserveAspectRatio="none"
-                              />
-                          </Pattern>
-                      );
-                  })}
               </Defs>
 
               {/* Render nails with designs or colors */}
@@ -479,24 +507,54 @@ const Cam = ({showCamera=false}) => {
                       // Find matching processed design
                       const matchingDesign = processedDesigns?.find?.(design => design?.targetIndex === index);
                       
-                      if (designMode && matchingDesign) {
-                          console.log(`Nail ${index} applying design pattern`);
+                      if (designMode && matchingDesign && matchingDesign.transformedDesignPolygon) {
+                          console.log(`Nail ${index} applying transformed design polygon`);
                           
-                          // Use the pattern with clipping to show only the design nail on the target nail
+                          const transformedPointsString = matchingDesign.transformedDesignPolygon.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
+                          
+                          // Calculate positioning for debugging
+                          const scaleX = matchingDesign.transformedBounds.width / matchingDesign.designBounds.width;
+                          const scaleY = matchingDesign.transformedBounds.height / matchingDesign.designBounds.height;
+                          const imageX = matchingDesign.transformedBounds.minX - (matchingDesign.designBounds.minX * scaleX);
+                          const imageY = matchingDesign.transformedBounds.minY - (matchingDesign.designBounds.minY * scaleY);
+                          
+                          console.log(`  Nail ${index} positioning: scale(${scaleX.toFixed(2)}, ${scaleY.toFixed(2)}) image pos(${imageX.toFixed(1)}, ${imageY.toFixed(1)})`);
+                          console.log(`  Design bounds: ${matchingDesign.designBounds.width.toFixed(1)}x${matchingDesign.designBounds.height.toFixed(1)}`);
+                          console.log(`  Transformed bounds: ${matchingDesign.transformedBounds.width.toFixed(1)}x${matchingDesign.transformedBounds.height.toFixed(1)}`);
+                          
                           return (
                               <React.Fragment key={index}>
-                                  {/* Nail with design pattern, clipped to nail shape */}
+                                  {/* Show original nail boundary in blue for reference */}
                                   <Polygon 
                                       points={pointsString}
-                                      fill={`url(#nail-pattern-${index})`}
+                                      fill="none"
+                                      stroke="#0066FF"
+                                      strokeWidth={1}
+                                      strokeDasharray="3,3"
+                                  />
+                                  
+                                  {/* Show transformed design nail polygon in green */}
+                                  <Polygon 
+                                      points={transformedPointsString}
+                                      fill="none"
+                                      stroke="none"
+                                      strokeWidth={0}
+                                  />
+                                  
+                                  {/* Apply the design image with clipping to show ONLY the designed nail areas */}
+                                  <SvgImage 
+                                      href={matchingDesign.sourceImage}
+                                      x={matchingDesign.transformedBounds.minX - (matchingDesign.designBounds.minX * (matchingDesign.transformedBounds.width / matchingDesign.designBounds.width))}
+                                      y={matchingDesign.transformedBounds.minY - (matchingDesign.designBounds.minY * (matchingDesign.transformedBounds.height / matchingDesign.designBounds.height))}
+                                      width={designImageDimensions.width * (matchingDesign.transformedBounds.width / matchingDesign.designBounds.width)}
+                                      height={designImageDimensions.height * (matchingDesign.transformedBounds.height / matchingDesign.designBounds.height)}
                                       clipPath={`url(#nail-clip-${index})`}
-                                      stroke="#00FF00"
-                                      strokeWidth={2}
+                                      preserveAspectRatio="none"
                                   />
                               </React.Fragment>
                           );
                       }
-                          
+                      
                       // Return regular colored nail
                       return(
                           <Polygon 
@@ -543,7 +601,7 @@ const Cam = ({showCamera=false}) => {
                 
                 <TouchableOpacity onPress={()=>designNailsXY(designNailImage)} style={[styles.colorButton, {backgroundColor: designMode ? '#4CAF50' : '#660036ff'}]}>
                     <Text style={{color: 'white', fontSize: 10}}>
-                        {designMode ? 'Design Active' : 'Design Pic'}
+                        {designMode ? 'Change Design' : 'Design Pic'}
                     </Text>
                 </TouchableOpacity>
                 
@@ -557,16 +615,16 @@ const Cam = ({showCamera=false}) => {
             {designMode && processedDesigns && processedDesigns.length > 0 && (
                 <View style={styles.designInfo}>
                     <Text style={styles.designInfoText}>
-                        ✓ {processedDesigns.length} individual nail designs applied
+                        ✓ {processedDesigns.length} transformed design nail polygons created
                     </Text>
                     <Text style={styles.designInfoText}>
-                        🎯 Each design nail is mapped to its corresponding captured nail
+                        🎯 Only designed nail areas are shown on captured nails
                     </Text>
                     <Text style={styles.designInfoText}>
-                        💚 Green borders = nails with designs applied
+                        💙 Blue dashed = original captured nail boundaries
                     </Text>
                     <Text style={styles.designInfoText}>
-                        ✂️ Designs are cropped and scaled to fit individual nail shapes
+                        ✂️ Design textures clipped to specific designed nail polygons
                     </Text>
                 </View>
             )}
