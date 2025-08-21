@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
-import Svg, { Defs, Pattern, Polygon, Image as SvgImage, ClipPath } from 'react-native-svg';
+import Svg, { Defs, Polygon, Image as SvgImage, ClipPath } from 'react-native-svg';
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -21,8 +21,8 @@ const Cam = ({showCamera=false}) => {
   const [selectedColor, setSelectedColor] = useState('#FF1493');
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
-  const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
-  // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
+  // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
+  const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/10/8f/6c/108f6c6d1c3ea75258e97a63bfd0b278.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
@@ -49,48 +49,6 @@ const Cam = ({showCamera=false}) => {
       setProcessedDesigns([]);
   };
 
-  // Debug function to check design application
-  const debugDesignApplication = () => {
-      if (!processedDesigns.length) {
-          console.log("No designs to debug");
-          return;
-      }
-      
-      console.log("=== DESIGN APPLICATION DEBUG ===");
-      console.log(`Design Image Dimensions: ${designImageDimensions.width} x ${designImageDimensions.height}`);
-      console.log(`Original Image Dimensions: ${originalImageDimensions.width} x ${originalImageDimensions.height}`);
-      
-      processedDesigns.forEach((design, i) => {
-          console.log(`Design ${i}:`, {
-              designIndex: design.designIndex,
-              targetIndex: design.targetIndex,
-              designBounds: design.designBounds,
-              targetBounds: design.targetBounds,
-              patternId: design.patternId,
-              clipId: design.clipId,
-              sourceImage: design.sourceImage
-          });
-          
-          // Calculate the scale factor being used
-          if (design.designBounds && design.targetBounds) {
-              const scaleX = design.targetBounds.width / design.designBounds.width;
-              const scaleY = design.targetBounds.height / design.designBounds.height;
-              console.log(`  Scale factors: X=${scaleX.toFixed(2)}, Y=${scaleY.toFixed(2)}`);
-          }
-      });
-      
-      // Test if design images are accessible
-      processedDesigns.forEach((design, i) => {
-          console.log(`Testing design image ${i}: ${design.sourceImage}`);
-          // Try to create a test image to see if it loads
-          const testImg = new Image();
-          testImg.onload = () => console.log(`Design image ${i} loaded successfully`);
-          testImg.onerror = () => console.log(`Design image ${i} failed to load`);
-          testImg.src = design.sourceImage;
-      });
-      
-      console.log("=== END DEBUG ===");
-  };
 
   // **SAFE AND SIMPLE GEOMETRY FUNCTIONS**
 
@@ -138,19 +96,60 @@ const Cam = ({showCamera=false}) => {
       }
   };
 
-  // Super simple nail analysis
+  // Calculate nail orientation/direction based on polygon shape, it finds the tip of nail
+  const calculateNailDirection = (points) => {
+      try {
+          if (!points || points.length < 3) return 0;
+          
+          // Find the primary axis of the nail by analyzing the polygon
+          const bounds = getSimpleBounds(points);
+          const centroid = getSimpleCentroid(points);
+          
+          // Find the farthest point from centroid (nail tip)
+          let maxDist = 0;
+          let tipPoint = points[0];
+          
+          points.forEach(point => {
+              const dist = Math.sqrt(
+                  Math.pow(point.x - centroid.x, 2) + 
+                  Math.pow(point.y - centroid.y, 2)
+              );
+              if (dist > maxDist) {
+                  maxDist = dist;
+                  tipPoint = point;
+              }
+          });
+          
+          // Calculate angle from centroid to tip (nail direction)
+          const angle = Math.atan2(tipPoint.y - centroid.y, tipPoint.x - centroid.x);
+          
+          // Convert to degrees for easier debugging
+          const degrees = (angle * 180 / Math.PI + 360) % 360;
+          
+          return angle; // Return in radians for calculations
+      } catch (error) {
+          console.log("Error calculating nail direction:", error);
+          return 0;
+      }
+  };
+
+  // Super simple nail analysis with direction
   const simpleNailAnalysis = (points) => {
       try {
           const bounds = getSimpleBounds(points);
           const centroid = getSimpleCentroid(points);
           const aspectRatio = bounds.height / (bounds.width || 1);
+          const direction = calculateNailDirection(points);
+          const directionDegrees = (direction * 180 / Math.PI + 360) % 360;
           
           return {
               bounds,
               centroid,
               aspectRatio,
               area: bounds.width * bounds.height,
-              nailType: aspectRatio > 1.5 ? 'long' : 'short'
+              nailType: aspectRatio > 1.5 ? 'long' : 'short',
+              direction: direction, // in radians
+              directionDegrees: directionDegrees // for debugging
           };
       } catch (error) {
           console.log("Error in simpleNailAnalysis:", error);
@@ -159,7 +158,9 @@ const Cam = ({showCamera=false}) => {
               centroid: { x: 50, y: 50 },
               aspectRatio: 1,
               area: 10000,
-              nailType: 'round'
+              nailType: 'round',
+              direction: 0,
+              directionDegrees: 0
           };
       }
   };
@@ -200,6 +201,60 @@ const Cam = ({showCamera=false}) => {
       }
   };
 
+  // Detect nail orientation and direction
+  const detectNailOrientation = (nailPolygon) => {
+      try {
+          if (!nailPolygon || nailPolygon.length < 3) return { angle: 0, direction: 'unknown' };
+          
+          const bounds = getSimpleBounds(nailPolygon);
+          const centroid = getSimpleCentroid(nailPolygon);
+          
+          // Find the longest axis of the nail
+          let maxDistance = 0;
+          let longestPoint = nailPolygon[0];
+          
+          for (const point of nailPolygon) {
+              const distance = Math.sqrt(Math.pow(point.x - centroid.x, 2) + Math.pow(point.y - centroid.y, 2));
+              if (distance > maxDistance) {
+                  maxDistance = distance;
+                  longestPoint = point;
+              }
+          }
+          
+          // Calculate angle from centroid to longest point
+          const angle = Math.atan2(longestPoint.y - centroid.y, longestPoint.x - centroid.x);
+          const degrees = (angle * 180 / Math.PI + 360) % 360;
+          
+          // Determine direction based on angle
+          let direction = 'unknown';
+          if (degrees >= 315 || degrees < 45) direction = 'right';
+          else if (degrees >= 45 && degrees < 135) direction = 'down';
+          else if (degrees >= 135 && degrees < 225) direction = 'left';
+          else if (degrees >= 225 && degrees < 315) direction = 'up';
+          
+          console.log(`Nail orientation: ${degrees.toFixed(1)}° (${direction})`);
+          
+          return { angle, direction, degrees };
+      } catch (error) {
+          console.log("Error detecting nail orientation:", error);
+          return { angle: 0, direction: 'unknown', degrees: 0 };
+      }
+  };
+
+  // Rotate point around center by given angle
+  const rotatePoint = (point, center, angle) => {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      
+      const dx = point.x - center.x;
+      const dy = point.y - center.y;
+      
+      return {
+          x: center.x + (dx * cos - dy * sin),
+          y: center.y + (dx * sin + dy * cos)
+      };
+  };
+
   // Transform design nail polygons to match captured nail polygon shapes with complete coverage
   const transformDesignNailToTarget = (designNail, targetNail) => {
       try {
@@ -208,31 +263,45 @@ const Cam = ({showCamera=false}) => {
               return designNail;
           }
 
+          // Detect orientations of both nails
+          const designOrientation = detectNailOrientation(designNail);
+          const targetOrientation = detectNailOrientation(targetNail);
+          
+          console.log(`Design nail: ${designOrientation.direction} (${designOrientation.degrees.toFixed(1)}°)`);
+          console.log(`Target nail: ${targetOrientation.direction} (${targetOrientation.degrees.toFixed(1)}°)`);
+
           // Get bounding boxes and centroids
           const designBounds = getSimpleBounds(designNail);
           const targetBounds = getSimpleBounds(targetNail);
           const designCentroid = getSimpleCentroid(designNail);
           const targetCentroid = getSimpleCentroid(targetNail);
 
-          // Calculate scale factors for complete coverage
+          // DIRECT MAPPING: Stretch designed nail to exactly match captured nail dimensions
           const scaleX = targetBounds.width / designBounds.width;
           const scaleY = targetBounds.height / designBounds.height;
           
-          // Use the LARGER scale to ensure the design nail completely covers the target nail
-          const scale = Math.max(scaleX, scaleY) * 1.2; // 20% extra for complete coverage
+          // Use the LARGER scale to ensure complete coverage
+          const scale = Math.max(scaleX, scaleY);
 
-          console.log(`Transform: scale=${scale.toFixed(2)} (base: ${Math.max(scaleX, scaleY).toFixed(2)} + 20% extra)`);
+          console.log(`Direct mapping: scaleX=${scaleX.toFixed(2)} scaleY=${scaleY.toFixed(2)} final=${scale.toFixed(2)}`);
+          console.log(`  Design: ${designBounds.width.toFixed(1)}x${designBounds.height.toFixed(1)} → Target: ${targetBounds.width.toFixed(1)}x${targetBounds.height.toFixed(1)}`);
 
-          // Transform each point: scale -> translate
+          // Calculate rotation needed to align orientations
+          const rotationAngle = targetOrientation.angle - designOrientation.angle;
+
+          // Transform each point: scale -> rotate -> translate
           const transformedPolygon = designNail.map(point => {
               // 1. Scale the point relative to design centroid
               const scaledX = (point.x - designCentroid.x) * scale;
               const scaledY = (point.y - designCentroid.y) * scale;
 
-              // 2. Translate to target centroid
+              // 2. Rotate around origin to align orientation
+              const rotatedPoint = rotatePoint({ x: scaledX, y: scaledY }, { x: 0, y: 0 }, rotationAngle);
+
+              // 3. Translate to target centroid
               return {
-                  x: scaledX + targetCentroid.x,
-                  y: scaledY + targetCentroid.y
+                  x: rotatedPoint.x + targetCentroid.x,
+                  y: rotatedPoint.y + targetCentroid.y
               };
           });
 
@@ -243,17 +312,26 @@ const Cam = ({showCamera=false}) => {
       }
   };
 
-  // Simple direct design transfer - apply individual nail designs to corresponding nails
+  // Simple direct design transfer - apply individual nail designs to corresponding nails with orientation alignment
   const simpleDesignTransfer = (designNails, targetNails, designImagePath) => {
       try {
-          console.log("Starting direct design transfer with complete coverage");
-          console.log("Design nails:", designNails.length, "Target nails:", targetNails.length);
+          console.log("Design nails:", designNails.length, "Target nails:", targetNails.length, "in SimpleDesignTransfer");
           
           const matches = [];
           const maxMatches = Math.min(designNails.length, targetNails.length);
+
+          console.log('maxMatches',maxMatches)
           
           for (let i = 0; i < maxMatches; i++) {
-              // Transform design nail polygon to completely cover target nail polygon
+              // Analyze both nails for orientation
+              const designAnalysis = simpleNailAnalysis(designNails[i]);
+              const targetAnalysis = simpleNailAnalysis(targetNails[i]);
+              
+              console.log(`Nail ${i} Analysis:`);
+              console.log(`  Design: ${designAnalysis.directionDegrees.toFixed(1)}° (${designAnalysis.nailType})`);
+              console.log(`  Target: ${targetAnalysis.directionDegrees.toFixed(1)}° (${targetAnalysis.nailType})`);
+              
+              // Transform design nail polygon to match target nail with proper orientation
               const transformedDesignPolygon = transformDesignNailToTarget(designNails[i], targetNails[i]);
               
               // Get bounds for texture mapping
@@ -261,10 +339,11 @@ const Cam = ({showCamera=false}) => {
               const targetBounds = getSimpleBounds(targetNails[i]);
               const transformedBounds = getSimpleBounds(transformedDesignPolygon);
               
-              console.log(`Nail ${i}: Design ${designNails[i].length} points → Transformed ${transformedDesignPolygon.length} points`);
-              console.log(`  Design bounds: ${designBounds.width.toFixed(1)}x${designBounds.height.toFixed(1)}`);
-              console.log(`  Target bounds: ${targetBounds.width.toFixed(1)}x${targetBounds.height.toFixed(1)}`);
-              console.log(`  Transformed bounds: ${transformedBounds.width.toFixed(1)}x${transformedBounds.height.toFixed(1)}`);
+              // Calculate rotation angle for the texture image
+              const rotationAngle = targetAnalysis.direction - designAnalysis.direction;
+              const rotationDegrees = (rotationAngle * 180 / Math.PI);
+              
+              console.log(`  Transformation: scale=${Math.max(targetBounds.width/designBounds.width, targetBounds.height/designBounds.height).toFixed(2)}, rotation=${rotationDegrees.toFixed(1)}°`);
               
               matches.push({
                   designIndex: i,
@@ -275,13 +354,17 @@ const Cam = ({showCamera=false}) => {
                   designBounds: designBounds,
                   targetBounds: targetBounds,
                   transformedBounds: transformedBounds,
+                  designAnalysis: designAnalysis,
+                  targetAnalysis: targetAnalysis,
+                  rotationAngle: rotationAngle,
+                  rotationDegrees: rotationDegrees,
                   patternId: `design-nail-${i}`,
                   clipId: `clip-nail-${i}`,
                   sourceImage: designImagePath
               });
           }
           
-          console.log("Created complete coverage matches:", matches.length);
+          console.log("Created orientation-aligned matches:", matches.length);
           return matches;
       } catch (error) {
           console.log("Error in simpleDesignTransfer:", error);
@@ -339,10 +422,8 @@ const Cam = ({showCamera=false}) => {
             alert("Please capture and detect nails first!");
             return;
         }
-        
-        console.log("Calling design API...");
+      
         const roboflowResponse = await imageDesignAPI(imagePath);
-        console.log("API response received");
         
         if (!roboflowResponse?.predictions?.length) {
             console.log("No design predictions");
@@ -350,15 +431,8 @@ const Cam = ({showCamera=false}) => {
             return;
         }
         
-        console.log("Extracting polygons...");
+        console.log("RowboFlow response for designed image:", roboflowResponse);
         const designedPolygons = roboflowResponse.predictions.map(pred => pred.points);
-        
-        console.log("Design polygons extracted:", designedPolygons.length);
-        console.log("Design image dimensions:", roboflowResponse.image?.width, "x", roboflowResponse.image?.height);
-        console.log("Design image URL:", imagePath);
-        
-        // Test if the design image is accessible
-        console.log("Testing design image accessibility...");
         
         setDesignPolygons(designedPolygons);
         setDesignImageDimensions({
@@ -366,21 +440,12 @@ const Cam = ({showCamera=false}) => {
             height: roboflowResponse.image?.height || 1000
         });
 
-        console.log("Processing transfer...");
         const processed = simpleDesignTransfer(designedPolygons, nailPolygons, imagePath);
         
-        console.log("Setting results...");
+        console.log("Processed designs in designNailsXY : ", processed);
+        
         setProcessedDesigns(processed);
         setDesignMode(true);
-        
-        console.log("Design processing complete!");
-        console.log("Final processed designs:", processed);
-        
-        // Test the first design image
-        if (processed.length > 0) {
-            console.log("Testing first design image:", processed[0].sourceImage);
-            console.log("First design clipId:", processed[0].clipId);
-        }
         
     } catch (error) {
         console.log("Design processing error:", error);
@@ -472,7 +537,7 @@ const Cam = ({showCamera=false}) => {
     );
   }
 
-  if( colorImage ) {
+  if( colorImage ) {  
     return (
       <View style={styles.container}>
         <View style={styles.imageContainer}>
@@ -488,12 +553,24 @@ const Cam = ({showCamera=false}) => {
               style={{position: 'absolute'}}
             >
               <Defs>
-                  {/* Create clipping paths for each nail to ensure designs stay within nail boundaries */}
+                  {/* Create clipping paths for each captured nail */}
                   {nailPolygons.map((points, index) => {
                       const pointsString = points.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
                       return (
                           <ClipPath key={`clip-${index}`} id={`nail-clip-${index}`}>
                               <Polygon points={pointsString} />
+                          </ClipPath>
+                      );
+                  })}
+                  
+                  {/* Create clipping paths for design nail regions */}
+                  {designMode && processedDesigns?.map?.((design, idx) => {
+                      if (!design || !design.designNail) return null;
+                      
+                      const designPointsString = design.designNail.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
+                      return (
+                          <ClipPath key={`design-clip-${idx}`} id={`design-nail-clip-${idx}`}>
+                              <Polygon points={designPointsString} />
                           </ClipPath>
                       );
                   })}
@@ -507,50 +584,42 @@ const Cam = ({showCamera=false}) => {
                       // Find matching processed design
                       const matchingDesign = processedDesigns?.find?.(design => design?.targetIndex === index);
                       
-                      if (designMode && matchingDesign && matchingDesign.transformedDesignPolygon) {
-                          console.log(`Nail ${index} applying transformed design polygon`);
+                      if (designMode && matchingDesign && matchingDesign.designNail) {
                           
-                          const transformedPointsString = matchingDesign.transformedDesignPolygon.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
+                          // Calculate scale to map design nail to target nail
+                          const scaleX = matchingDesign.targetBounds.width / matchingDesign.designBounds.width;
+                          const scaleY = matchingDesign.targetBounds.height / matchingDesign.designBounds.height;
                           
-                          // Calculate positioning for debugging
-                          const scaleX = matchingDesign.transformedBounds.width / matchingDesign.designBounds.width;
-                          const scaleY = matchingDesign.transformedBounds.height / matchingDesign.designBounds.height;
-                          const imageX = matchingDesign.transformedBounds.minX - (matchingDesign.designBounds.minX * scaleX);
-                          const imageY = matchingDesign.transformedBounds.minY - (matchingDesign.designBounds.minY * scaleY);
+                          // Position the design image so the design nail aligns with target nail
+                          const imageX = matchingDesign.targetBounds.minX - (matchingDesign.designBounds.minX * scaleX);
+                          const imageY = matchingDesign.targetBounds.minY - (matchingDesign.designBounds.minY * scaleY);
+                          const imageWidth = designImageDimensions.width * scaleX;
+                          const imageHeight = designImageDimensions.height * scaleY;
                           
-                          console.log(`  Nail ${index} positioning: scale(${scaleX.toFixed(2)}, ${scaleY.toFixed(2)}) image pos(${imageX.toFixed(1)}, ${imageY.toFixed(1)})`);
-                          console.log(`  Design bounds: ${matchingDesign.designBounds.width.toFixed(1)}x${matchingDesign.designBounds.height.toFixed(1)}`);
-                          console.log(`  Transformed bounds: ${matchingDesign.transformedBounds.width.toFixed(1)}x${matchingDesign.transformedBounds.height.toFixed(1)}`);
+                          console.log(`  Image transform: pos(${imageX.toFixed(1)}, ${imageY.toFixed(1)}) size(${imageWidth.toFixed(1)}, ${imageHeight.toFixed(1)})`);
                           
                           return (
                               <React.Fragment key={index}>
-                                  {/* Show original nail boundary in blue for reference */}
-                                  <Polygon 
-                                      points={pointsString}
-                                      fill="none"
-                                      stroke="#0066FF"
-                                      strokeWidth={1}
-                                      strokeDasharray="3,3"
-                                  />
-                                  
-                                  {/* Show transformed design nail polygon in green */}
-                                  <Polygon 
-                                      points={transformedPointsString}
-                                      fill="none"
-                                      stroke="none"
-                                      strokeWidth={0}
-                                  />
-                                  
-                                  {/* Apply the design image with clipping to show ONLY the designed nail areas */}
+                                  {/* Show the design image positioned and scaled so only the design nail shows in the target nail */}
                                   <SvgImage 
                                       href={matchingDesign.sourceImage}
-                                      x={matchingDesign.transformedBounds.minX - (matchingDesign.designBounds.minX * (matchingDesign.transformedBounds.width / matchingDesign.designBounds.width))}
-                                      y={matchingDesign.transformedBounds.minY - (matchingDesign.designBounds.minY * (matchingDesign.transformedBounds.height / matchingDesign.designBounds.height))}
-                                      width={designImageDimensions.width * (matchingDesign.transformedBounds.width / matchingDesign.designBounds.width)}
-                                      height={designImageDimensions.height * (matchingDesign.transformedBounds.height / matchingDesign.designBounds.height)}
+                                      x={imageX}
+                                      y={imageY}
+                                      width={imageWidth}
+                                      height={imageHeight}
                                       clipPath={`url(#nail-clip-${index})`}
                                       preserveAspectRatio="none"
+                                      opacity="0.9"
                                   />
+                                  
+                                  {/* Optional: show nail boundary */}
+                                  {/* <Polygon 
+                                      points={pointsString}
+                                      fill="none"
+                                      stroke="#666"
+                                      strokeWidth={0.5}
+                                      strokeOpacity="0.3"
+                                  /> */}
                               </React.Fragment>
                           );
                       }
@@ -604,30 +673,7 @@ const Cam = ({showCamera=false}) => {
                         {designMode ? 'Change Design' : 'Design Pic'}
                     </Text>
                 </TouchableOpacity>
-                
-                {designMode && (
-                    <TouchableOpacity onPress={debugDesignApplication} style={[styles.colorButton, {backgroundColor: '#FF6B35'}]}>
-                        <Text style={{color: 'white', fontSize: 10}}>Debug</Text>
-                    </TouchableOpacity>
-                )}
             </View>
-            
-            {designMode && processedDesigns && processedDesigns.length > 0 && (
-                <View style={styles.designInfo}>
-                    <Text style={styles.designInfoText}>
-                        ✓ {processedDesigns.length} transformed design nail polygons created
-                    </Text>
-                    <Text style={styles.designInfoText}>
-                        🎯 Only designed nail areas are shown on captured nails
-                    </Text>
-                    <Text style={styles.designInfoText}>
-                        💙 Blue dashed = original captured nail boundaries
-                    </Text>
-                    <Text style={styles.designInfoText}>
-                        ✂️ Design textures clipped to specific designed nail polygons
-                    </Text>
-                </View>
-            )}
         </View>
         
         <TouchableOpacity style={styles.capButton} onPress={()=>backToCamera()}>
