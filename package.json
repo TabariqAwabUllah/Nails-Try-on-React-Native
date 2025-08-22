@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@react-native/new-app-screen": "0.80.2",
+    "@shopify/react-native-skia": "^2.2.4",
     "axios": "^1.11.0",
     "react": "19.1.0",
     "react-native": "0.80.2",
