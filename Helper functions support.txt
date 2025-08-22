@@ -1,0 +1,15 @@
+Helper functions support transformations:
+
+rotatePoint → rotates a 2D point around a center.
+
+detectNailOrientation → finds angle of the nail polygon based on farthest point from centroid.
+
+simpleNailMatching → simple 1:1 index mapping (design nail i → target nail i).
+
+simpleNailAnalysis → analyzes size, aspect ratio, direction of a nail polygon.
+
+calculateNailDirection → finds angle from centroid to farthest point (nail tip).
+
+getSimpleCentroid → average of all points (polygon center).
+
+getSimpleBounds → bounding box (min/max x/y, width, height).
