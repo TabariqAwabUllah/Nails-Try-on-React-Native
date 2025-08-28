@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
-import Svg, { Defs, Polygon, Image as SvgImage, ClipPath } from 'react-native-svg';
+import Svg, { Defs, Polygon, ClipPath } from 'react-native-svg';
+import DragAndDrop from './DragAndDrop';
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -30,6 +31,7 @@ const Cam = ({showCamera=false}) => {
 
   const [originalImageDimensions, setOriginalImageDimensions] = useState({ width: 0, height: 0 });
   const [designImageDimensions, setDesignImageDimensions] = useState({ width: 0, height: 0 });
+  const [nailTransforms, setNailTransforms] = useState({});
       
   const colors = [
       { name: 'Red', color: '#FF0000' },
@@ -47,6 +49,14 @@ const Cam = ({showCamera=false}) => {
       setSelectedColor(color);
       setDesignMode(false);
       setProcessedDesigns([]);
+  };
+
+  const handleNailTransform = (index, transforms) => {
+      setNailTransforms(prev => ({
+          ...prev,
+          [index]: transforms
+      }));
+      console.log(`Nail ${index} transformed:`, transforms);
   };
 
 
@@ -575,56 +585,12 @@ const Cam = ({showCamera=false}) => {
                       );
                   })}
               </Defs>
-
-              {/* Render nails with designs or colors */}
-              {nailPolygons.map((points, index) => {
+              
+              {/* Render regular colored nails when not in design mode */}
+              {!designMode && nailPolygons.map((points, index) => {
                   try {
                       const pointsString = points.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
                       
-                      // Find matching processed design
-                      const matchingDesign = processedDesigns?.find?.(design => design?.targetIndex === index);
-                      
-                      if (designMode && matchingDesign && matchingDesign.designNail) {
-                          
-                          // Calculate scale to map design nail to target nail
-                          const scaleX = matchingDesign.targetBounds.width / matchingDesign.designBounds.width;
-                          const scaleY = matchingDesign.targetBounds.height / matchingDesign.designBounds.height;
-                          
-                          // Position the design image so the design nail aligns with target nail
-                          const imageX = matchingDesign.targetBounds.minX - (matchingDesign.designBounds.minX * scaleX);
-                          const imageY = matchingDesign.targetBounds.minY - (matchingDesign.designBounds.minY * scaleY);
-                          const imageWidth = designImageDimensions.width * scaleX;
-                          const imageHeight = designImageDimensions.height * scaleY;
-                          
-                          console.log(`  Image transform: pos(${imageX.toFixed(1)}, ${imageY.toFixed(1)}) size(${imageWidth.toFixed(1)}, ${imageHeight.toFixed(1)})`);
-                          
-                          return (
-                              <React.Fragment key={index}>
-                                  {/* Show the design image positioned and scaled so only the design nail shows in the target nail */}
-                                  <SvgImage 
-                                      href={matchingDesign.sourceImage}
-                                      x={imageX}
-                                      y={imageY}
-                                      width={imageWidth}
-                                      height={imageHeight}
-                                      clipPath={`url(#nail-clip-${index})`}
-                                      preserveAspectRatio="none"
-                                      opacity="0.9"
-                                  />
-                                  
-                                  {/* Optional: show nail boundary */}
-                                  {/* <Polygon 
-                                      points={pointsString}
-                                      fill="none"
-                                      stroke="#666"
-                                      strokeWidth={0.5}
-                                      strokeOpacity="0.3"
-                                  /> */}
-                              </React.Fragment>
-                          );
-                      }
-                      
-                      // Return regular colored nail
                       return(
                           <Polygon 
                               key={index}
@@ -641,6 +607,18 @@ const Cam = ({showCamera=false}) => {
                   }
               })}
             </Svg>
+            
+            {/* Render draggable design nails outside SVG context */}
+            {designMode && processedDesigns?.map?.((design, index) => (
+                <DragAndDrop
+                    key={`design-${index}`}
+                    design={design}
+                    index={index}
+                    designImageDimensions={designImageDimensions}
+                    originalImageDimensions={originalImageDimensions}
+                    onTransformChange={(transforms) => handleNailTransform(index, transforms)}
+                />
+            ))}
         </View>
           
         {/* Color selection buttons */}
