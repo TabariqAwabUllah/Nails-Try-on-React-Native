@@ -31,11 +31,15 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
 
   // Pan gesture
   const panGesture = Gesture.Pan()
+    .onStart(() => {
+      console.log(`Pan started for nail ${index}`);
+    })
     .onUpdate((event) => {
       translateX.value = savedTranslateX.value + event.translationX;
       translateY.value = savedTranslateY.value + event.translationY;
     })
     .onEnd(() => {
+      console.log(`Pan ended for nail ${index}`);
       savedTranslateX.value = translateX.value;
       savedTranslateY.value = translateY.value;
       
@@ -52,10 +56,16 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
 
   // Pinch gesture
   const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      console.log(`Pinch started for nail ${index}`);
+    })
     .onUpdate((event) => {
-      scale.value = Math.max(0.5, Math.min(3, savedScale.value * event.scale));
+      const newScale = Math.max(0.5, Math.min(3, savedScale.value * event.scale));
+      scale.value = newScale;
+      console.log(`Pinch scale: ${newScale.toFixed(2)} for nail ${index}`);
     })
     .onEnd(() => {
+      console.log(`Pinch ended for nail ${index}, final scale: ${scale.value.toFixed(2)}`);
       savedScale.value = scale.value;
       
       runOnJS(handleTransformChange)({
@@ -68,10 +78,15 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
 
   // Rotation gesture
   const rotationGesture = Gesture.Rotation()
+    .onStart(() => {
+      console.log(`Rotation started for nail ${index}`);
+    })
     .onUpdate((event) => {
       rotation.value = savedRotation.value + event.rotation;
+      console.log(`Rotation angle: ${(rotation.value * 180 / Math.PI).toFixed(1)}° for nail ${index}`);
     })
     .onEnd(() => {
+      console.log(`Rotation ended for nail ${index}`);
       savedRotation.value = rotation.value;
       
       runOnJS(handleTransformChange)({
@@ -82,10 +97,11 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
       });
     });
 
-  // Combine all gestures
+  // Combine all gestures - use Simultaneous for all
   const composedGesture = Gesture.Simultaneous(
     panGesture,
-    Gesture.Simultaneous(pinchGesture, rotationGesture)
+    pinchGesture,
+    rotationGesture
   );
 
   // Animated style
@@ -100,47 +116,103 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
     };
   });
 
-  if (!design || !design.designNail) return null;
+  if (!design || !design.designNail) {
+    console.log(`DragAndDrop ${index}: Missing design or designNail`, { design: !!design, designNail: !!design?.designNail });
+    return null;
+  }
 
-  // Calculate nail bounds for clipping
+  // Calculate nail bounds for clipping with error handling
   const designNail = design.designNail;
+  
+  // Validate nail data
+  if (!Array.isArray(designNail) || designNail.length === 0) {
+    console.log(`DragAndDrop ${index}: Invalid designNail array`, designNail);
+    return null;
+  }
+
+  // Validate all points have x,y coordinates
+  const validPoints = designNail.filter(p => p && typeof p.x === 'number' && typeof p.y === 'number' && !isNaN(p.x) && !isNaN(p.y));
+  if (validPoints.length < 3) {
+    console.log(`DragAndDrop ${index}: Not enough valid points`, { total: designNail.length, valid: validPoints.length });
+    return null;
+  }
+
   const designBounds = design.designBounds || {
-    minX: Math.min(...designNail.map(p => p.x)),
-    minY: Math.min(...designNail.map(p => p.y)),
-    maxX: Math.max(...designNail.map(p => p.x)),
-    maxY: Math.max(...designNail.map(p => p.y))
+    minX: Math.min(...validPoints.map(p => p.x)),
+    minY: Math.min(...validPoints.map(p => p.y)),
+    maxX: Math.max(...validPoints.map(p => p.x)),
+    maxY: Math.max(...validPoints.map(p => p.y))
   };
   designBounds.width = designBounds.maxX - designBounds.minX;
   designBounds.height = designBounds.maxY - designBounds.minY;
+
+  // Validate bounds
+  if (designBounds.width <= 0 || designBounds.height <= 0) {
+    console.log(`DragAndDrop ${index}: Invalid bounds`, designBounds);
+    return null;
+  }
 
   // Calculate the scale factor to match the screen dimensions
   const screenScale = originalImageDimensions.width > 0 ? 
     (300 / originalImageDimensions.width) : 1;
 
-  // Create polygon points string for clipping
-  const pointsString = designNail.map(p => `${p.x},${p.y}`).join(' ');
+  // Create polygon points string for clipping using valid points
+  const pointsString = validPoints.map(p => `${p.x},${p.y}`).join(' ');
+
+  // Make container slightly larger for better gesture detection
+  const containerWidth = Math.max(100, designBounds.width * screenScale);
+  const containerHeight = Math.max(100, designBounds.height * screenScale);
+
+  // Debug: Log component creation
+  console.log(`DragAndDrop nail ${index} SUCCESS: size ${containerWidth.toFixed(1)}x${containerHeight.toFixed(1)}, bounds:`, designBounds);
 
   return (
     <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[styles.container, animatedStyle]}>
+      <Animated.View 
+        style={[
+          styles.container, 
+          animatedStyle,
+          {
+            width: containerWidth,
+            height: containerHeight,
+          }
+        ]}
+      >
         <Svg 
-          width={designBounds.width * screenScale} 
-          height={designBounds.height * screenScale}
-          viewBox={`${designBounds.minX} ${designBounds.minY} ${designBounds.width} ${designBounds.height}`}
-          style={styles.nailImage}
+          width={containerWidth} 
+          height={containerHeight}
+          viewBox={`0 0 ${containerWidth} ${containerHeight}`}       style={styles.nailImage}
         >
           <Defs>
             <ClipPath id={`nail-clip-${index}`}>
-              <Polygon points={pointsString} />
+              {/* <Polygon points={pointsString}  */}
+              <Polygon points={validPoints.map(p => `${(p.x - 
+                designBounds.minX) * screenScale},${(p.y - designBounds.minY) * 
+                screenScale}`).join(' ')} />
+              {/* /> */}
             </ClipPath>
           </Defs>
           
+          {/* Debug: Show nail polygon shape */}
+          <Polygon 
+            // points={pointsString} 
+            points={validPoints.map(p => `${(p.x - designBounds.minX) *
+           screenScale},${(p.y - designBounds.minY) * screenScale}`).join(' ')} 
+            // fill="rgba(0,255,0,0.3)" 
+            // stroke="green" 
+            // strokeWidth="2"
+          />
+          
           <SvgImage
             href={design.sourceImage}
-            x={0}
-            y={0}
-            width={designImageDimensions.width}
-            height={designImageDimensions.height}
+            // x={0}
+            // y={0}
+            // width={designImageDimensions.width}
+            // height={designImageDimensions.height}
+            x={-designBounds.minX * screenScale}
+            y={-designBounds.minY * screenScale}
+            width={designImageDimensions.width * screenScale}
+            height={designImageDimensions.height * screenScale}
             clipPath={`url(#nail-clip-${index})`}
             preserveAspectRatio="none"
             opacity="0.9"
@@ -153,12 +225,14 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
 
 const styles = StyleSheet.create({
   container: {
+    // flex: 1,
     position: 'absolute',
     top: 0,
     left: 0,
     zIndex: 1000,
-    // Add a subtle background to show the touchable area during debugging
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255,0,0,0.1)', // Temporary red tint to see touch area
+    borderWidth: 1,
+    borderColor: 'rgba(255,0,0,0.3)',
   },
   nailImage: {
     opacity: 0.9,

@@ -452,7 +452,14 @@ const Cam = ({showCamera=false}) => {
 
         const processed = simpleDesignTransfer(designedPolygons, nailPolygons, imagePath);
         
-        console.log("Processed designs in designNailsXY : ", processed);
+        console.log("Processed designs in designNailsXY:", processed.length);
+        console.log("Design details:", processed.map((p, i) => ({ 
+            index: i, 
+            hasDesignNail: !!p.designNail, 
+            designNailPoints: p.designNail?.length || 0,
+            hasTargetNail: !!p.targetNail,
+            targetNailPoints: p.targetNail?.length || 0
+        })));
         
         setProcessedDesigns(processed);
         setDesignMode(true);
