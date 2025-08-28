@@ -117,7 +117,7 @@ const DragAndDrop = ({   design, designImageDimensions, originalImageDimensions,
               height: designImageDimensions.height * screenScale,
             }
           ]}
-          resizeMode="contain"
+          resizeMode='stretch'
         />
       </Animated.View>
     </GestureDetector>
