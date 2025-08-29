@@ -4,6 +4,7 @@ import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
 import Svg, { Defs, Polygon, ClipPath } from 'react-native-svg';
 import DragAndDrop from './DragAndDrop';
+import RNFS from 'react-native-fs';
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -22,8 +23,8 @@ const Cam = ({showCamera=false}) => {
   const [selectedColor, setSelectedColor] = useState('#FF1493');
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
-  // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
-  const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
+  const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
+  // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/10/8f/6c/108f6c6d1c3ea75258e97a63bfd0b278.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
@@ -32,6 +33,8 @@ const Cam = ({showCamera=false}) => {
   const [originalImageDimensions, setOriginalImageDimensions] = useState({ width: 0, height: 0 });
   const [designImageDimensions, setDesignImageDimensions] = useState({ width: 0, height: 0 });
   const [nailTransforms, setNailTransforms] = useState({});
+  const [selectedNailIndex, setSelectedNailIndex] = useState(null);
+  const [extractedNailImages, setExtractedNailImages] = useState([]);
       
   const colors = [
       { name: 'Red', color: '#FF0000' },
@@ -58,6 +61,65 @@ const Cam = ({showCamera=false}) => {
       }));
       console.log(`Nail ${index} transformed:`, transforms);
   };
+
+  const handleNailSelection = (index) => {
+      setSelectedNailIndex(index);
+      console.log(`Nail ${index} selected`);
+  };
+
+  const handleDeselectNail = () => {
+      setSelectedNailIndex(null);
+      console.log(`Nail deselected`);
+  };
+
+  // Function to extract individual nail images from design image
+  const extractNailImages = async (designPolygons, designImagePath, designImageDimensions) => {
+    try {
+      console.log("Extracting individual nail images...");
+      const extractedNails = [];
+      
+      for (let i = 0; i < designPolygons.length; i++) {
+        const nailPolygon = designPolygons[i];
+        
+        // Calculate bounds for this nail
+        const bounds = {
+          minX: Math.min(...nailPolygon.map(p => p.x)),
+          minY: Math.min(...nailPolygon.map(p => p.y)),
+          maxX: Math.max(...nailPolygon.map(p => p.x)),
+          maxY: Math.max(...nailPolygon.map(p => p.y))
+        };
+        bounds.width = bounds.maxX - bounds.minX;
+        bounds.height = bounds.maxY - bounds.minY;
+        
+        // Create nail data object with adjusted polygon coordinates (relative to bounds)
+        const normalizedPolygon = nailPolygon.map(p => ({
+          x: p.x - bounds.minX,
+          y: p.y - bounds.minY
+        }));
+        
+        const nailData = {
+          id: `nail_${i}`,
+          polygon: normalizedPolygon, // Now relative to the cropped bounds
+          bounds: bounds,
+          sourceImage: designImagePath,
+          sourceImageDimensions: designImageDimensions,
+          cropX: bounds.minX,
+          cropY: bounds.minY,
+          cropWidth: bounds.width,
+          cropHeight: bounds.height
+        };
+        
+        extractedNails.push(nailData);
+        console.log(`Extracted nail ${i}:`, bounds);
+      }
+      
+      return extractedNails;
+    } catch (error) {
+      console.log("Error extracting nail images:", error);
+      return [];
+    }
+  };
+
 
 
   // **SAFE AND SIMPLE GEOMETRY FUNCTIONS**
@@ -445,21 +507,21 @@ const Cam = ({showCamera=false}) => {
         const designedPolygons = roboflowResponse.predictions.map(pred => pred.points);
         
         setDesignPolygons(designedPolygons);
-        setDesignImageDimensions({
+        const imageDimensions = {
             width: roboflowResponse.image?.width || 1000,
             height: roboflowResponse.image?.height || 1000
-        });
+        };
+        setDesignImageDimensions(imageDimensions);
+
+        // Extract individual nail images
+        const extractedNails = await extractNailImages(designedPolygons, imagePath, imageDimensions);
+        setExtractedNailImages(extractedNails);
+        
+        console.log("Extracted nails:", extractedNails.length);
 
         const processed = simpleDesignTransfer(designedPolygons, nailPolygons, imagePath);
         
         console.log("Processed designs in designNailsXY:", processed.length);
-        console.log("Design details:", processed.map((p, i) => ({ 
-            index: i, 
-            hasDesignNail: !!p.designNail, 
-            designNailPoints: p.designNail?.length || 0,
-            hasTargetNail: !!p.targetNail,
-            targetNailPoints: p.targetNail?.length || 0
-        })));
         
         setProcessedDesigns(processed);
         setDesignMode(true);
@@ -616,14 +678,17 @@ const Cam = ({showCamera=false}) => {
             </Svg>
             
             {/* Render draggable design nails outside SVG context */}
-            {designMode && processedDesigns?.map?.((design, index) => (
+            {designMode && extractedNailImages?.map?.((nailData, index) => (
                 <DragAndDrop
-                    key={`design-${index}`}
-                    design={design}
+                    key={`nail-${index}`}
+                    nailData={nailData}
                     index={index}
                     designImageDimensions={designImageDimensions}
                     originalImageDimensions={originalImageDimensions}
+                    isSelected={selectedNailIndex === index}
                     onTransformChange={(transforms) => handleNailTransform(index, transforms)}
+                    onSelect={() => handleNailSelection(index)}
+                    onDeselect={handleDeselectNail}
                 />
             ))}
         </View>

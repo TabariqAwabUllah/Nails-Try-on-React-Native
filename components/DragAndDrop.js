@@ -1,5 +1,4 @@
 import React, { useCallback } from 'react';
-import { StyleSheet } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { 
   useAnimatedStyle, 
@@ -9,11 +8,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Defs, ClipPath, Polygon, Image as SvgImage } from 'react-native-svg';
 
-const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimensions, onTransformChange }) => {
+const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDimensions, isSelected, onTransformChange, onSelect, onDeselect }) => {
   // Shared values for animations
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  const scale = useSharedValue(1);
+  const scale = useSharedValue(2);
   const rotation = useSharedValue(0);
   
   // Saved values for gesture continuity
@@ -103,7 +102,9 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
     .onStart(() => {
       console.log(`Double tap for nail ${index} - zooming to 2x`);
       // Animate to 2x scale
-      const newScale = scale.value === 2 ? 1 : 2; // Toggle between 1x and 2x
+      const newScale = scale.value === 2 ? 3 : 2; // Toggle between 1x and 2x
+      console.log("New scale on double tap:", scale);
+      
       scale.value = withSpring(newScale);
       savedScale.value = newScale;
       
@@ -137,60 +138,32 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
     };
   });
 
-  if (!design || !design.designNail) {
-    console.log(`DragAndDrop ${index}: Missing design or designNail`, { design: !!design, designNail: !!design?.designNail });
+  if (!nailData) {
+    console.log(`DragAndDrop ${index}: Missing nailData`);
     return null;
   }
 
-  // Calculate nail bounds for clipping with error handling
-  const designNail = design.designNail;
+  // Use the extracted nail data
+  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight } = nailData;
+  console.log("Nail data:", nailData);
   
-  // Validate nail data
-  if (!Array.isArray(designNail) || designNail.length === 0) {
-    console.log(`DragAndDrop ${index}: Invalid designNail array`, designNail);
-    return null;
-  }
+  
+  // Calculate scale to make nail a reasonable size
+  const maxNailSize = 80; // Max size for individual nails
+  const nailScale = Math.min(maxNailSize / bounds.width, maxNailSize / bounds.height);
+  const nailWidth = bounds.width * nailScale;
+  const nailHeight = bounds.height * nailScale;
 
-  // Validate all points have x,y coordinates
-  const validPoints = designNail.filter(p => p && typeof p.x === 'number' && typeof p.y === 'number' && !isNaN(p.x) && !isNaN(p.y));
-  if (validPoints.length < 3) {
-    console.log(`DragAndDrop ${index}: Not enough valid points`, { total: designNail.length, valid: validPoints.length });
-    return null;
-  }
+  console.log(`DragAndDrop nail ${index}: Individual nail size ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
 
-  const designBounds = design.designBounds || {
-    minX: Math.min(...validPoints.map(p => p.x)),
-    minY: Math.min(...validPoints.map(p => p.y)),
-    maxX: Math.max(...validPoints.map(p => p.x)),
-    maxY: Math.max(...validPoints.map(p => p.y))
-  };
-  designBounds.width = designBounds.maxX - designBounds.minX;
-  designBounds.height = designBounds.maxY - designBounds.minY;
-
-  // Validate bounds
-  if (designBounds.width <= 0 || designBounds.height <= 0) {
-    console.log(`DragAndDrop ${index}: Invalid bounds`, designBounds);
-    return null;
-  }
-
-  // Calculate the scale factor to match the screen dimensions
-  const screenScale = originalImageDimensions.width > 0 ? 
-    (300 / originalImageDimensions.width) : 1;
-
-  // Create polygon points string for clipping using valid points
-  const pointsString = validPoints.map(p => `${p.x},${p.y}`).join(' ');
-
-  // Make container slightly larger for better gesture detection
-  const containerWidth = Math.max(100, designBounds.width * screenScale);
-  const containerHeight = Math.max(100, designBounds.height * screenScale);
-
-  // Debug: Log component creation
-  console.log(`DragAndDrop nail ${index} SUCCESS: size ${containerWidth.toFixed(1)}x${containerHeight.toFixed(1)}, bounds:`, designBounds);
-
-  // Add initial positioning so nails don't stack at (0,0)
-  const initialX = (index % 2) * 150; // Spread horizontally
-  const initialY = Math.floor(index / 2) * 150; // Spread vertically
-
+  // Center nails on screen with spread layout
+  const screenCenterX = 200; 
+  const screenCenterY = 400; 
+  
+  // Position nails in a 2x2 grid centered on screen
+  const initialX = screenCenterX + ((index % 2) * 120) - 60;
+  const initialY = screenCenterY + (Math.floor(index / 2) * 120) - 60;
+  
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View style={[
@@ -203,26 +176,24 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
         animatedStyle
       ]}>
         <Svg 
-          width={containerWidth} 
-          height={containerHeight}
-          viewBox={`0 0 ${containerWidth} ${containerHeight}`}
-          style={styles.nailSvg}
+          width={nailWidth} 
+          height={nailHeight}
+          viewBox={`0 0 ${cropWidth} ${cropHeight}`}
         >
           <Defs>
-            <ClipPath id={`nail-clip-${index}`}>
-              <Polygon points={validPoints.map(p => `${(p.x - designBounds.minX) * screenScale},${(p.y - designBounds.minY) * screenScale}`).join(' ')} />
+            <ClipPath id={`individual-nail-${index}`}>
+              <Polygon points={polygon.map(p => `${p.x},${p.y}`).join(' ')} />
             </ClipPath>
           </Defs>
           
           <SvgImage
-            href={design.sourceImage}
-            x={-designBounds.minX * screenScale}
-            y={-designBounds.minY * screenScale}
-            width={designImageDimensions.width * screenScale}
-            height={designImageDimensions.height * screenScale}
-            clipPath={`url(#nail-clip-${index})`}
+            href={sourceImage}
+            x={-cropX}
+            y={-cropY}
+            width={sourceImageDimensions.width}
+            height={sourceImageDimensions.height}
+            clipPath={`url(#individual-nail-${index})`}
             preserveAspectRatio="none"
-            // opacity="0.9"
           />
         </Svg>
       </Animated.View>
@@ -230,11 +201,5 @@ const DragAndDrop = ({ design, index, designImageDimensions, originalImageDimens
   );
 };
 
-const styles = StyleSheet.create({
-  nailSvg: {
-    // Pure SVG styling - no containers
-    // opacity: 0.9,
-  },
-});
 
 export default DragAndDrop;
