@@ -73,9 +73,12 @@ const Cam = ({showCamera=false}) => {
   };
 
   // Function to extract individual nail images from design image
-  const extractNailImages = async (designPolygons, designImagePath, designImageDimensions) => {
+  const extractNailImages = async (designPolygons, designImagePath, designImageDimensions, capturedNailPolygons, capturedImageDimensions) => {
     try {
       console.log("Extracting individual nail images...");
+      console.log("Design polygons:", designPolygons?.length);
+      console.log("Captured polygons:", capturedNailPolygons?.length);
+      console.log("Design image path:", designImagePath);
       const extractedNails = [];
       
       for (let i = 0; i < designPolygons.length; i++) {
@@ -97,6 +100,26 @@ const Cam = ({showCamera=false}) => {
           y: p.y - bounds.minY
         }));
         
+        // Calculate captured nail center position if available
+        let capturedNailCenter = null;
+        if (capturedNailPolygons && capturedNailPolygons[i] && capturedImageDimensions) {
+          const capturedPolygon = capturedNailPolygons[i];
+          const capturedCenterX = capturedPolygon.reduce((sum, p) => sum + p.x, 0) / capturedPolygon.length;
+          const capturedCenterY = capturedPolygon.reduce((sum, p) => sum + p.y, 0) / capturedPolygon.length;
+          
+          // Scale coordinates to screen display size (assuming screen width ~400, height ~800)
+          const screenWidth = 400;
+          const screenHeight = 800;
+          const scaleX = screenWidth / capturedImageDimensions.width;
+          const scaleY = screenHeight / capturedImageDimensions.height;
+          
+          capturedNailCenter = { 
+            x: capturedCenterX * scaleX, 
+            y: capturedCenterY * scaleY 
+          };
+          console.log(`Original center: (${capturedCenterX.toFixed(1)}, ${capturedCenterY.toFixed(1)}) -> Scaled: (${capturedNailCenter.x.toFixed(1)}, ${capturedNailCenter.y.toFixed(1)})`);
+        }
+        
         const nailData = {
           id: `nail_${i}`,
           polygon: normalizedPolygon, // Now relative to the cropped bounds
@@ -106,13 +129,15 @@ const Cam = ({showCamera=false}) => {
           cropX: bounds.minX,
           cropY: bounds.minY,
           cropWidth: bounds.width,
-          cropHeight: bounds.height
+          cropHeight: bounds.height,
+          capturedNailCenter: capturedNailCenter // Position to place designed nail
         };
         
         extractedNails.push(nailData);
-        console.log(`Extracted nail ${i}:`, bounds);
+        console.log(`Extracted nail ${i}:`, bounds, 'Captured center:', capturedNailCenter);
       }
       
+      console.log("Successfully extracted", extractedNails.length, "nails");
       return extractedNails;
     } catch (error) {
       console.log("Error extracting nail images:", error);
@@ -513,8 +538,8 @@ const Cam = ({showCamera=false}) => {
         };
         setDesignImageDimensions(imageDimensions);
 
-        // Extract individual nail images
-        const extractedNails = await extractNailImages(designedPolygons, imagePath, imageDimensions);
+        // Extract individual nail images with captured nail positions
+        const extractedNails = await extractNailImages(designedPolygons, imagePath, imageDimensions, nailPolygons, originalImageDimensions);
         setExtractedNailImages(extractedNails);
         
         console.log("Extracted nails:", extractedNails.length);
@@ -678,6 +703,7 @@ const Cam = ({showCamera=false}) => {
             </Svg>
             
             {/* Render draggable design nails outside SVG context */}
+            {designMode && extractedNailImages?.length > 0 && console.log("Rendering", extractedNailImages.length, "extracted nails")}
             {designMode && extractedNailImages?.map?.((nailData, index) => (
                 <DragAndDrop
                     key={`nail-${index}`}

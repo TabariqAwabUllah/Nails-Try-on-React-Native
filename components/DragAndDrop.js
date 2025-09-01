@@ -9,6 +9,8 @@ import Animated, {
 import Svg, { Defs, ClipPath, Polygon, Image as SvgImage } from 'react-native-svg';
 
 const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDimensions, isSelected, onTransformChange, onSelect, onDeselect }) => {
+  console.log(`DragAndDrop component ${index} rendering with data:`, !!nailData);
+  
   // Shared values for animations
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -144,7 +146,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   }
 
   // Use the extracted nail data
-  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight } = nailData;
+  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight, capturedNailCenter } = nailData;
   console.log("Nail data:", nailData);
   
   
@@ -156,13 +158,22 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
 
   console.log(`DragAndDrop nail ${index}: Individual nail size ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
 
-  // Center nails on screen with spread layout
-  const screenCenterX = 200; 
-  const screenCenterY = 400; 
+  // Position designed nail on top of captured nail if available, otherwise use fallback
+  let initialX, initialY;
   
-  // Position nails in a 2x2 grid centered on screen
-  const initialX = screenCenterX + ((index % 2) * 120) - 60;
-  const initialY = screenCenterY + (Math.floor(index / 2) * 120) - 60;
+  if (capturedNailCenter) {
+    // Position designed nail centered on captured nail position
+    initialX = capturedNailCenter.x - (nailWidth / 2);
+    initialY = capturedNailCenter.y - (nailHeight / 2);
+    console.log(`Positioning designed nail ${index} on captured nail center:`, capturedNailCenter);
+  } else {
+    // Fallback to grid layout if no captured nail position
+    const screenCenterX = 200; 
+    const screenCenterY = 400; 
+    initialX = screenCenterX + ((index % 2) * 120) - 60;
+    initialY = screenCenterY + (Math.floor(index / 2) * 120) - 60;
+    console.log(`Using fallback position for nail ${index}`);
+  }
   
   return (
     <GestureDetector gesture={composedGesture}>
