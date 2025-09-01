@@ -312,6 +312,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       alignItems: 'center',
       borderWidth: isRotating.value ? 2 : 1,
       borderColor: 'white',
+      zIndex: 1001,
+      // elevation: 1001,
       transform: [{ scale: isRotating.value ? 1.1 : 1 }]
     };
   });
@@ -328,6 +330,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       borderRadius: 12,
       justifyContent: 'center',
       alignItems: 'center',
+      zIndex: 1001,
+      // elevation: 1001,
       borderWidth: isZooming.value ? 2 : 1,
       borderColor: 'white',
       transform: [{ scale: isZooming.value ? 1.1 : 1 }]
@@ -345,7 +349,12 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
           position: 'absolute',
           left: initialX,
           top: initialY,
-          // backgroundColor: 'red'
+          zIndex: isSelected ? 1000 : index,
+          // elevation: isSelected ? 1000 : index,
+          // borderWidth: isSelected ? 2 : 0,
+          // borderColor: isSelected ? 'rgba(0, 123, 255, 0.8)' : 'transparent',
+          // borderRadius: isSelected ? 4 : 0,
+          // padding: isSelected ? 2 : 0
         },
         animatedStyle
       ]}>
