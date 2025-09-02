@@ -11,21 +11,28 @@ import Svg, { Defs, ClipPath, Polygon, Image as SvgImage } from 'react-native-sv
 
 const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDimensions, isSelected, onTransformChange, onSelect, onDeselect }) => {
   console.log(`DragAndDrop component ${index} rendering with data:`, !!nailData);
-  console.log("DragAndDrop", check );
-  function check (){
-    nailData.map((items)=> console.log(items))
-  }
+  // console.log("DragAndDrop", check() );
+  // function check (){
+  //   nailData.map((items)=> console.log(items))
+  // }
   
   // Shared values for animations
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const scale = useSharedValue(1);
+  const scaleX = useSharedValue(1);
+  const scaleY = useSharedValue(1);
   const rotation = useSharedValue(0);
+
+  // console.log("scale1:", scale, "scaleX:", scaleX, "scaleY:", scaleY, "rotation:", rotation, "translateX:", translateX, "translateY:", translateY);
+  
   
   // Saved values for gesture continuity
   const savedTranslateX = useSharedValue(0);
   const savedTranslateY = useSharedValue(0);
   const savedScale = useSharedValue(1);
+  const savedScaleX = useSharedValue(1);
+  const savedScaleY = useSharedValue(1);
   const savedRotation = useSharedValue(0);
 
   // Rotation control state
@@ -37,6 +44,14 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const isZooming = useSharedValue(false);
   const zoomStartDistance = useSharedValue(0);
   const zoomStartScale = useSharedValue(1);
+
+  // Width control state
+  const isWidthScaling = useSharedValue(false);
+  const widthStartScale = useSharedValue(0);
+
+  // Height control state
+  const isHeightScaling = useSharedValue(false);
+  const heightStartScale = useSharedValue(1);
 
   // Create a stable callback function
   const handleTransformChange = useCallback((transforms) => {
@@ -59,17 +74,25 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const nailWidth = bounds.width * nailScale;
   const nailHeight = bounds.height * nailScale;
 
+  console.log("Nail Width",nailWidth,"Nail Height",nailHeight);
+  
+
   // Position designed nail on top of captured nail if available, otherwise use fallback
   let initialX, initialY;
   
   if (capturedNailCenter) {
     initialX = capturedNailCenter.x - (nailWidth / 2);
     initialY = capturedNailCenter.y - (nailHeight / 2);
+
+    console.log("initialX",initialX,"initialY",initialY, "in If condition");
+    
   } else {
     const screenCenterX = 200; 
     const screenCenterY = 400; 
     initialX = screenCenterX + ((index % 2) * 120) - 60;
     initialY = screenCenterY + (Math.floor(index / 2) * 120) - 60;
+
+    console.log("initialX",initialX,"initialY",initialY, "in else condition");
   }
 
   // Helper function to calculate angle from nail center to finger position
@@ -87,9 +110,15 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       // Calculate nail center in screen coordinates
       const nailCenterX = initialX + (nailWidth / 2) + translateX.value;
       const nailCenterY = initialY + (nailHeight / 2) + translateY.value;
+
+      
+      
       
       // Calculate initial angle from center to finger position
       rotationStartAngle.value = calculateAngle(nailCenterX, nailCenterY, event.absoluteX, event.absoluteY) - savedRotation.value;
+
+      console.log("onStart in rotation gesture.Pan(); nailCenterX",nailCenterX,"nailCenterY",nailCenterY, "rotationStartAngle",rotationStartAngle.value);
+      
     })
     .onUpdate((event) => {
       if (isRotating.value) {
@@ -103,6 +132,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
         // Calculate rotation relative to start
         const newRotation = currentAngle - rotationStartAngle.value;
         rotation.value = newRotation;
+        console.log("onUpdate in rotation gesture.Pan(); nailCenterX",nailCenterX,"nailCenterY",nailCenterY, "rotationStartAngle",rotationStartAngle.value);
       }
     })
     .onEnd(() => {
@@ -115,6 +145,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
           x: translateX.value,
           y: translateY.value,
           scale: scale.value,
+          scaleX: scaleX.value,
+          scaleY: scaleY.value,
           rotation: rotation.value
         });
       }
@@ -132,6 +164,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const zoomControlGesture = Gesture.Pan()
     .onStart((event) => {
       console.log(`Zoom control started for nail ${index}`);
+      console.log("onStart in zoom gesture.Pan();, event", event);
+      
       isZooming.value = true;
       
       // Calculate zoom button center in screen coordinates
@@ -156,18 +190,95 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
         const newScale = Math.max(0.3, Math.min(4, zoomStartScale.value + distanceChange));
         
         scale.value = newScale;
+        // Reset both dimensions to use uniform scaling
+        scaleX.value = newScale;
+        scaleY.value = newScale;
       }
     })
     .onEnd(() => {
       console.log(`Zoom control ended for nail ${index}`);
       isZooming.value = false;
       savedScale.value = scale.value;
+      savedScaleX.value = scaleX.value;
+      savedScaleY.value = scaleY.value;
       
       if (handleTransformChange) {
         runOnJS(handleTransformChange)({
           x: translateX.value,
           y: translateY.value,
           scale: scale.value,
+          scaleX: scaleX.value,
+          scaleY: scaleY.value,
+          rotation: rotation.value
+        });
+      }
+    });
+
+  // Width control gesture
+  const widthControlGesture = Gesture.Pan()
+    .onStart((event) => {
+      console.log(`Width control started for nail ${index}`);
+      isWidthScaling.value = true;
+      widthStartScale.value = scaleX.value;
+    })
+    .onUpdate((event) => {
+      if (isWidthScaling.value) {
+        // Use translation change directly for more intuitive scaling
+        const scaleChange = event.translationX / 100; // Sensitivity factor
+        const newScaleX = Math.max(0.3, Math.min(4, widthStartScale.value + scaleChange));
+        
+        console.log(`Width scaling: ${newScaleX.toFixed(2)} for nail ${index}`);
+        scaleX.value = newScaleX;
+        // Keep scaleY unchanged when adjusting width
+      }
+    })
+    .onEnd(() => {
+      console.log(`Width control ended for nail ${index}`);
+      isWidthScaling.value = false;
+      savedScaleX.value = scaleX.value;
+      
+      if (handleTransformChange) {
+        runOnJS(handleTransformChange)({
+          x: translateX.value,
+          y: translateY.value,
+          scale: scale.value,
+          scaleX: scaleX.value,
+          scaleY: scaleY.value,
+          rotation: rotation.value
+        });
+      }
+    });
+
+  // Height control gesture
+  const heightControlGesture = Gesture.Pan()
+    .onStart((event) => {
+      console.log(`Height control started for nail ${index}`);
+      isHeightScaling.value = true;
+      heightStartScale.value = scaleY.value;
+    })
+    .onUpdate((event) => {
+      if (isHeightScaling.value) {
+        // Use translation change directly for more intuitive scaling
+        const scaleChange = -event.translationY / 100; // Negative because dragging up should increase height
+        const newScaleY = Math.max(0.3, Math.min(4, heightStartScale.value + scaleChange));
+        
+        console.log(`Height scaling: ${newScaleY.toFixed(2)} for nail ${index}`);
+        scaleY.value = newScaleY;
+        // Keep scaleX unchanged when adjusting height
+      }
+    })
+    .onEnd(() => {
+      console.log(`Height control ended for nail ${index}`);
+      isHeightScaling.value = false;
+      savedScaleY.value = scaleY.value;
+      
+      if (handleTransformChange) {
+        runOnJS(handleTransformChange)({
+          x: translateX.value,
+          y: translateY.value,
+          scale: scale.value,
+          scaleX: scaleX.value,
+          scaleY: scaleY.value,
           rotation: rotation.value
         });
       }
@@ -193,6 +304,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
           x: translateX.value,
           y: translateY.value,
           scale: scale.value,
+          scaleX: scaleX.value,
+          scaleY: scaleY.value,
           rotation: rotation.value
         });
       }
@@ -206,16 +319,23 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
     .onUpdate((event) => {
       const newScale = Math.max(0.5, Math.min(3, savedScale.value * event.scale));
       scale.value = newScale;
+      // Reset both dimensions to use uniform scaling
+      scaleX.value = newScale;
+      scaleY.value = newScale;
       // console.log(`Pinch scale: ${newScale.toFixed(2)} for nail ${index}`);
     })
     .onEnd(() => {
       // console.log(`Pinch ended for nail ${index}, final scale: ${scale.value.toFixed(2)}`);
       savedScale.value = scale.value;
+      savedScaleX.value = scaleX.value;
+      savedScaleY.value = scaleY.value;
       
       runOnJS(handleTransformChange)({
         x: translateX.value,
         y: translateY.value,
         scale: scale.value,
+        scaleX: scaleX.value,
+        scaleY: scaleY.value,
         rotation: rotation.value
       });
     });
@@ -237,6 +357,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
         x: translateX.value,
         y: translateY.value,
         scale: scale.value,
+        scaleX: scaleX.value,
+        scaleY: scaleY.value,
         rotation: rotation.value
       });
     });
@@ -268,13 +390,20 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       console.log("New scale on double tap:", scale);
       
       scale.value = withSpring(newScale);
+      // Reset both dimensions to use uniform scaling
+      scaleX.value = withSpring(newScale);
+      scaleY.value = withSpring(newScale);
       savedScale.value = newScale;
+      savedScaleX.value = newScale;
+      savedScaleY.value = newScale;
       
       if (handleTransformChange) {
         runOnJS(handleTransformChange)({
           x: translateX.value,
           y: translateY.value,
           scale: newScale,
+          scaleX: scaleX.value,
+          scaleY: scaleY.value,
           rotation: rotation.value
         });
       }
@@ -292,7 +421,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       transform: [
         { translateX: translateX.value },
         { translateY: translateY.value },
-        { scale: scale.value },
+        { scaleX: scaleX.value },
+        { scaleY: scaleY.value },
         { rotate: `${rotation.value}rad` },
       ],
     };
@@ -335,6 +465,46 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       borderWidth: isZooming.value ? 2 : 1,
       borderColor: 'white',
       transform: [{ scale: isZooming.value ? 1.1 : 1 }]
+    };
+  });
+
+  // Animated style for width button
+  const widthButtonStyle = useAnimatedStyle(() => {
+    return {
+      position: 'absolute',
+      left: -12,
+      top: '50%',
+      marginTop: -12,
+      width: 24,
+      height: 24,
+      backgroundColor: isWidthScaling.value ? 'rgba(255, 165, 0, 1)' : 'rgba(255, 165, 0, 0.8)',
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1001,
+      borderWidth: isWidthScaling.value ? 2 : 1,
+      borderColor: 'white',
+      transform: [{ scale: isWidthScaling.value ? 1.1 : 1 }]
+    };
+  });
+
+  // Animated style for height button
+  const heightButtonStyle = useAnimatedStyle(() => {
+    return {
+      position: 'absolute',
+      top: -12,
+      left: '50%',
+      marginLeft: -12,
+      width: 24,
+      height: 24,
+      backgroundColor: isHeightScaling.value ? 'rgba(255, 20, 147, 1)' : 'rgba(255, 20, 147, 0.8)',
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1001,
+      borderWidth: isHeightScaling.value ? 2 : 1,
+      borderColor: 'white',
+      transform: [{ scale: isHeightScaling.value ? 1.1 : 1 }]
     };
   });
 
@@ -394,6 +564,20 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
             <GestureDetector gesture={zoomControlGesture}>
               <Animated.View style={zoomButtonStyle}>
                 <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>⊕</Text>
+              </Animated.View>
+            </GestureDetector>
+            
+            {/* Width Button - Left Middle */}
+            <GestureDetector gesture={widthControlGesture}>
+              <Animated.View style={widthButtonStyle}>
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>w</Text>
+              </Animated.View>
+            </GestureDetector>
+            
+            {/* Height Button - Top Middle */}
+            <GestureDetector gesture={heightControlGesture}>
+              <Animated.View style={heightButtonStyle}>
+                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>H</Text>
               </Animated.View>
             </GestureDetector>
           </>
