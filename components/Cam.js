@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
-import Svg, { Defs, Polygon, ClipPath } from 'react-native-svg';
+import Svg, { Defs, Polygon, ClipPath, Path } from 'react-native-svg';
 import DragAndDrop from './DragAndDrop';
 import RNFS from 'react-native-fs';
 import { processNailsToImages } from './NailImageExtractor';
-import { detectNailDirection, calculateAlignmentRotation } from './NailMappingUtils';
+import { detectNailDirection, calculateAlignmentRotation, polygonUtils } from './NailMappingUtils';
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -41,14 +41,14 @@ const Cam = ({showCamera=false}) => {
   const [showDirections, setShowDirections] = useState(false);
       
   const colors = [
-      { name: 'Red', color: '#FF0000' },
-      { name: 'Pink', color: '#FF1493' },
+      { name: 'Red', color: '#800020' },
+      // { name: 'Pink', color: '#FF1493' },
       { name: 'Purple', color: '#800080' },
-      { name: 'Blue', color: '#0000FF' },
-      { name: 'Green', color: '#00FF00' },
+      // { name: 'Blue', color: '#0000FF' },
+      // { name: 'Green', color: '#00FF00' },
       { name: 'Black', color: '#000000' },
-      { name: 'White', color: '#FFFFFF' },
-      { name: 'Gold', color: '#FFBf00' }
+      // { name: 'White', color: '#FFFFFF' },
+      // { name: 'Gold', color: '#FFBf00' }
   ];
 
   const applyColor = (color) => {
@@ -473,18 +473,18 @@ const Cam = ({showCamera=false}) => {
               {!designMode && nailPolygons.map((points, index) => {
                   try {
                       const pointsString = points.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
-                      
-                      return(
-                          <Polygon 
-                              key={index}
-                              points={pointsString}
-                              fill={selectedColor}
-                              fillOpacity="0.95"
-                              stroke="#000000"
-                              strokeWidth={1}
-                          />
-                      )
-                  } catch (error) {
+
+                          return(
+                              <Polygon 
+                                  key={index}
+                                  points={pointsString}
+                                  fill={selectedColor}
+                                  fillOpacity="20"
+                                  stroke="#000000"
+                                  strokeWidth={2}
+                              />
+                          )
+                    } catch (error) {
                       console.log(`Error rendering nail ${index}:`, error);
                       return null;
                   }
@@ -576,7 +576,7 @@ const Cam = ({showCamera=false}) => {
         {/* Color selection buttons */}
         <View style={styles.colorContainer}>
             <Text style={styles.title}>Choose nail style:</Text>
-            <View style={styles.colorRow}>
+            {/* <View style={styles.colorRow}>
                 {colors.slice(0, 4).map((item, index) => (
                     <TouchableOpacity 
                         key={index}
@@ -586,9 +586,9 @@ const Cam = ({showCamera=false}) => {
                         <Text style={styles.colorText}>{item.name}</Text>
                     </TouchableOpacity>
                 ))}
-            </View>
+            </View> */}
             <View style={styles.colorRow}>
-                {colors.slice(4, 8).map((item, index) => (
+                {colors.map((item, index) => (
                     <TouchableOpacity 
                         key={index}
                         style={[styles.colorButton, {backgroundColor: item.color}]}
