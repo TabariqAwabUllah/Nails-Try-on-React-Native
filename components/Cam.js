@@ -5,6 +5,8 @@ import { imageAPI, imageDesignAPI } from '../api/API';
 import Svg, { Defs, Polygon, ClipPath } from 'react-native-svg';
 import DragAndDrop from './DragAndDrop';
 import RNFS from 'react-native-fs';
+import { processNailsToImages } from './NailImageExtractor';
+import { detectNailDirection, calculateAlignmentRotation } from './NailMappingUtils';
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -23,10 +25,10 @@ const Cam = ({showCamera=false}) => {
   const [selectedColor, setSelectedColor] = useState('#FF1493');
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
-  // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
+  const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
-  const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
+  // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
 
   const [originalImageDimensions, setOriginalImageDimensions] = useState({ width: 0, height: 0 });
@@ -34,6 +36,9 @@ const Cam = ({showCamera=false}) => {
   const [nailTransforms, setNailTransforms] = useState({});
   const [selectedNailIndex, setSelectedNailIndex] = useState(null);
   const [extractedNailImages, setExtractedNailImages] = useState([]);
+  const [capturedNailDirections, setCapturedNailDirections] = useState([]);
+  const [designedNailDirections, setDesignedNailDirections] = useState([]);
+  const [showDirections, setShowDirections] = useState(false);
       
   const colors = [
       { name: 'Red', color: '#FF0000' },
@@ -43,7 +48,7 @@ const Cam = ({showCamera=false}) => {
       { name: 'Green', color: '#00FF00' },
       { name: 'Black', color: '#000000' },
       { name: 'White', color: '#FFFFFF' },
-      { name: 'Gold', color: '#FFD700' }
+      { name: 'Gold', color: '#FFBf00' }
   ];
 
   const applyColor = (color) => {
@@ -71,8 +76,44 @@ const Cam = ({showCamera=false}) => {
       console.log(`Nail deselected`);
   };
 
+  const toggleDirectionsDisplay = () => {
+      setShowDirections(!showDirections);
+      console.log(`Directions display: ${!showDirections ? 'ON' : 'OFF'}`);
+      
+      if (!showDirections && (capturedNailDirections.length > 0 || designedNailDirections.length > 0)) {
+        console.log("\n📍 CURRENT NAIL DIRECTIONS:");
+        console.log("   Legend: Emojis = Captured Nails 📷 | Letters = Designed Nails 🎨");
+        
+        if (capturedNailDirections.length > 0) {
+          console.log("   📷 CAPTURED NAILS:");
+          capturedNailDirections.forEach((direction, index) => {
+            console.log(`      Nail ${index}: ${direction.emoji} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
+          });
+        }
+        
+        if (designedNailDirections.length > 0) {
+          console.log("   🎨 DESIGNED NAILS:");
+          designedNailDirections.forEach((direction, index) => {
+            const letter = getDirectionLetter(direction.direction);
+            console.log(`      Nail ${index}: ${letter} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
+          });
+        }
+      }
+  };
+
+  // Convert direction to letter for designed nails
+  const getDirectionLetter = (direction) => {
+    switch(direction) {
+      case 'UP': return 'U';
+      case 'DOWN': return 'D';
+      case 'LEFT': return 'L';
+      case 'RIGHT': return 'R';
+      default: return '?';
+    }
+  };
+
   // Function to extract individual nail images from design image
-  const extractNailImages = async (designPolygons, designImagePath, designImageDimensions, capturedNailPolygons, capturedImageDimensions) => {
+  const extractNailImages = async (designPolygons, designImagePath, designImageDimensions, capturedNailPolygons, capturedImageDimensions, designedDirections = [], capturedDirections = []) => {
     try {
       console.log("Extracting individual nail images...");
       console.log("Design polygons:", designPolygons?.length);
@@ -119,6 +160,19 @@ const Cam = ({showCamera=false}) => {
           console.log(`Original center: (${capturedCenterX.toFixed(1)}, ${capturedCenterY.toFixed(1)}) -> Scaled: (${capturedNailCenter.x.toFixed(1)}, ${capturedNailCenter.y.toFixed(1)})`);
         }
         
+        // Calculate auto-rotation if we have direction data
+        let initialRotation = 0;
+        let shouldAutoRotate = false;
+        
+        if (designedDirections[i] && capturedDirections[i]) {
+          const alignment = calculateAlignmentRotation(designedDirections[i], capturedDirections[i]);
+          if (alignment.shouldRotate) {
+            initialRotation = alignment.rotationNeeded * (Math.PI / 180); // Convert to radians
+            shouldAutoRotate = true;
+            console.log(`🔄 Auto-rotating designed nail ${i} by ${alignment.rotationNeeded.toFixed(1)}° to match captured nail direction`);
+          }
+        }
+
         const nailData = {
           id: `nail_${i}`,
           polygon: normalizedPolygon, // Now relative to the cropped bounds
@@ -129,7 +183,11 @@ const Cam = ({showCamera=false}) => {
           cropY: bounds.minY,
           cropWidth: bounds.width,
           cropHeight: bounds.height,
-          capturedNailCenter: capturedNailCenter // Position to place designed nail
+          capturedNailCenter: capturedNailCenter, // Position to place designed nail
+          initialRotation: initialRotation, // Auto-rotation angle in radians
+          shouldAutoRotate: shouldAutoRotate,
+          designedDirection: designedDirections[i],
+          capturedDirection: capturedDirections[i]
         };
         
         extractedNails.push(nailData);
@@ -174,7 +232,19 @@ const Cam = ({showCamera=false}) => {
         const polygons = roboflowResponse.predictions.map(pred => pred.points);
         console.log("Nail polygons:", polygons);
 
+        // Detect directions for all captured nails
+        console.log("\n🎯 ===== CAPTURED NAILS DIRECTION ANALYSIS =====");
+        const capturedDirections = polygons.map((polygon, index) => {
+          return detectNailDirection(polygon, index, 'captured');
+        });
+        
+        console.log(`\n📋 CAPTURED NAILS SUMMARY:`);
+        capturedDirections.forEach((direction, index) => {
+          console.log(`   Nail ${index}: ${direction.emoji} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
+        });
+
         setNailPolygons(polygons);
+        setCapturedNailDirections(capturedDirections);
         setOriginalImageDimensions({
             width: roboflowResponse.image.width,
             height: roboflowResponse.image.height
@@ -200,7 +270,41 @@ const Cam = ({showCamera=false}) => {
         console.log("RowboFlow response for designed image:", roboflowResponse);
         const designedPolygons = roboflowResponse.predictions.map(pred => pred.points);
         
+        // Detect directions for all designed nails
+        console.log("\n🎨 ===== DESIGNED NAILS DIRECTION ANALYSIS =====");
+        const designedDirections = designedPolygons.map((polygon, index) => {
+          return detectNailDirection(polygon, index, 'designed');
+        });
+        
+        console.log(`\n📋 DESIGNED NAILS SUMMARY:`);
+        designedDirections.forEach((direction, index) => {
+          console.log(`   Nail ${index}: ${direction.emoji} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
+        });
+
+        // Calculate alignment rotations if we have both captured and designed nail directions
+        if (capturedNailDirections.length > 0) {
+          console.log("\n🔄 ===== NAIL ALIGNMENT ANALYSIS =====");
+          const alignments = designedDirections.map((designedDirection, index) => {
+            if (index < capturedNailDirections.length) {
+              const capturedDirection = capturedNailDirections[index];
+              const alignment = calculateAlignmentRotation(designedDirection, capturedDirection);
+              return alignment;
+            }
+            return null;
+          }).filter(Boolean);
+          
+          console.log(`\n📊 ALIGNMENT RECOMMENDATIONS:`);
+          alignments.forEach((alignment, index) => {
+            if (alignment.shouldRotate) {
+              console.log(`   🔧 Nail ${index}: Rotate ${alignment.rotationNeeded.toFixed(1)}° for better alignment`);
+            } else {
+              console.log(`   ✅ Nail ${index}: Already well aligned`);
+            }
+          });
+        }
+        
         setDesignPolygons(designedPolygons);
+        setDesignedNailDirections(designedDirections);
         const imageDimensions = {
             width: roboflowResponse.image?.width || 1000,
             height: roboflowResponse.image?.height || 1000
@@ -208,10 +312,26 @@ const Cam = ({showCamera=false}) => {
         setDesignImageDimensions(imageDimensions);
 
         // Extract individual nail images with captured nail positions
-        const extractedNails = await extractNailImages(designedPolygons, imagePath, imageDimensions, nailPolygons, originalImageDimensions);
-        setExtractedNailImages(extractedNails);
+        const rawNailData = await extractNailImages(designedPolygons, imagePath, imageDimensions, nailPolygons, originalImageDimensions, designedDirections, capturedNailDirections);
         
-        console.log("Extracted nails:", extractedNails.length);
+        // Process nails to create individual images
+        const processedNails = await processNailsToImages(rawNailData);
+        setExtractedNailImages(processedNails);
+        
+        console.log("Processed nails:", processedNails.length);
+        
+        // Summary of auto-rotations applied
+        const autoRotatedCount = processedNails.filter(nail => nail.shouldAutoRotate).length;
+        if (autoRotatedCount > 0) {
+          console.log(`\n🎯 AUTO-ROTATION SUMMARY:`);
+          console.log(`   ✅ ${autoRotatedCount} designed nail(s) automatically rotated to match captured nail directions`);
+          processedNails.forEach((nail, idx) => {
+            if (nail.shouldAutoRotate) {
+              const rotationDegrees = (nail.initialRotation * 180 / Math.PI).toFixed(1);
+              console.log(`   🔄 Nail ${idx}: ${rotationDegrees}° rotation applied (${nail.designedDirection?.direction} → ${nail.capturedDirection?.direction})`);
+            }
+          });
+        }
 
         // const processed = simpleDesignTransfer(designedPolygons, nailPolygons, imagePath);
         
@@ -371,6 +491,44 @@ const Cam = ({showCamera=false}) => {
               })}
             </Svg>
             
+            {/* Direction indicators overlay */}
+            {showDirections && capturedNailDirections.length > 0 && capturedNailDirections.map((direction, index) => {
+                if (nailPolygons[index]) {
+                    const bounds = {
+                        minX: Math.min(...nailPolygons[index].map(p => p?.x || 0)),
+                        minY: Math.min(...nailPolygons[index].map(p => p?.y || 0)),
+                        maxX: Math.max(...nailPolygons[index].map(p => p?.x || 0)),
+                        maxY: Math.max(...nailPolygons[index].map(p => p?.y || 0))
+                    };
+                    const centerX = (bounds.minX + bounds.maxX) / 2;
+                    const centerY = (bounds.minY + bounds.maxY) / 2;
+                    
+                    // Scale coordinates to match image display
+                    const scaleX = 400 / originalImageDimensions.width; // Assuming ~400px display width
+                    const scaleY = 800 / originalImageDimensions.height; // Assuming ~800px display height
+                    
+                    return (
+                        <View
+                            key={`direction-${index}`}
+                            style={[styles.directionOverlay,{
+                                left: centerX * scaleX - 15,
+                                top: centerY * scaleY - 15,
+
+                            }]}
+                        >
+                            <Text style={{
+                                color: 'white',
+                                fontSize: 16,
+                                fontWeight: 'bold'
+                            }}>
+                                {direction.emoji}
+                            </Text>
+                        </View>
+                    );
+                }
+                return null;
+            })}
+            
             {/* Render draggable design nails outside SVG context */}
             {/* {designMode && extractedNailImages?.length > 0 && console.log("Rendering", extractedNailImages.length, "extracted nails")} */}
             {designMode && extractedNailImages?.map?.((nailData, index) => (
@@ -386,6 +544,33 @@ const Cam = ({showCamera=false}) => {
                     onDeselect={handleDeselectNail}
                 />
             ))}
+
+            {/* Direction indicators for designed nails */}
+            {showDirections && designMode && designedNailDirections.length > 0 && extractedNailImages?.map?.((nailData, index) => {
+                const direction = designedNailDirections[index];
+                if (direction && nailData?.capturedNailCenter) {
+                    const letter = getDirectionLetter(direction.direction);
+                    
+                    return (
+                        <View
+                            key={`designed-direction-${index}`}
+                            style={[styles.directionIndicator, {     
+                               left: nailData.capturedNailCenter.x - 10,
+                               top: nailData.capturedNailCenter.y - 35,
+                              }]}
+                        >
+                            <Text style={{
+                                color: 'white',
+                                fontSize: 12,
+                                fontWeight: 'bold'
+                            }}>
+                                {letter}
+                            </Text>
+                        </View>
+                    );
+                }
+                return null;
+            })}
         </View>
           
         {/* Color selection buttons */}
@@ -418,6 +603,14 @@ const Cam = ({showCamera=false}) => {
                         {designMode ? 'Change Design' : 'Design Pic'}
                     </Text>
                 </TouchableOpacity>
+                
+                {(capturedNailDirections.length > 0 || designedNailDirections.length > 0) && (
+                  <TouchableOpacity onPress={toggleDirectionsDisplay} style={[styles.colorButton, {backgroundColor: showDirections ? '#FF6B35' : '#2196F3'}]}>
+                      <Text style={{color: 'white', fontSize: 9}}>
+                          {showDirections ? 'Hide Dir' : 'Show Dir'}
+                      </Text>
+                  </TouchableOpacity>
+                )}
             </View>
         </View>
         
@@ -509,7 +702,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#2E7D32',
     marginBottom: 2,
-  }
+  },
+  directionIndicator: {
+      position: 'absolute',
+      width: 20,
+      height: 20,
+      backgroundColor: 'rgba(255, 0, 0, 0.9)', // Red background for designed nails
+      borderRadius: 10,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 950, // Higher than captured nail indicators
+      borderWidth: 1,
+      borderColor: 'white'
+  },
+  directionOverlay: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 900
+
+  },
 });
 
 export default Cam;

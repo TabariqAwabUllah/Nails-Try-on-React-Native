@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Text } from 'react-native';
+import { Text, Image } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { 
   useAnimatedStyle, 
@@ -60,13 +60,34 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
     }
   }, [onTransformChange]);
 
+  // Apply initial rotation from nailData if auto-rotation is enabled
+  React.useEffect(() => {
+    if (nailData?.initialRotation && nailData?.shouldAutoRotate) {
+      console.log(`🔄 Applying initial auto-rotation of ${(nailData.initialRotation * 180 / Math.PI).toFixed(1)}° to designed nail ${index}`);
+      rotation.value = nailData.initialRotation;
+      savedRotation.value = nailData.initialRotation;
+      
+      // Notify parent component about the initial rotation
+      if (handleTransformChange) {
+        handleTransformChange({
+          x: translateX.value,
+          y: translateY.value,
+          scale: scale.value,
+          scaleX: scaleX.value,
+          scaleY: scaleY.value,
+          rotation: nailData.initialRotation
+        });
+      }
+    }
+  }, [nailData?.initialRotation, nailData?.shouldAutoRotate, index]);
+
   // Calculate nail dimensions and position early so they're available for gestures
   if (!nailData) {
     console.log(`DragAndDrop ${index}: Missing nailData`);
     return null;
   }
 
-  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight, capturedNailCenter } = nailData;
+  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight, capturedNailCenter, nailImageUri } = nailData;
   
   // Calculate scale to make nail a reasonable size
   const maxNailSize = 80;
@@ -512,6 +533,11 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   console.log(`DragAndDrop nail ${index}: Individual nail size ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
   console.log(`Positioning designed nail ${index} on captured nail center:`, capturedNailCenter);
   
+  if (nailData?.shouldAutoRotate) {
+    const rotationDegrees = (nailData.initialRotation * 180 / Math.PI).toFixed(1);
+    console.log(`🔄 Nail ${index} auto-rotated: ${rotationDegrees}° (${nailData.designedDirection?.direction} → ${nailData.capturedDirection?.direction})`);
+  }
+  
   return (
     <GestureDetector gesture={composedGesture}>
       <Animated.View style={[
@@ -520,14 +546,11 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
           left: initialX,
           top: initialY,
           zIndex: isSelected ? 1000 : index,
-          // elevation: isSelected ? 1000 : index,
-          // borderWidth: isSelected ? 2 : 0,
-          // borderColor: isSelected ? 'rgba(0, 123, 255, 0.8)' : 'transparent',
-          // borderRadius: isSelected ? 4 : 0,
-          // padding: isSelected ? 2 : 0
         },
         animatedStyle
       ]}>
+        {/* For now, we still use SVG clipping since we can't do true image extraction in React Native without additional libraries */}
+        {/* The nailImageUri is available for future use when proper image extraction is implemented */}
         <Svg 
           width={nailWidth} 
           height={nailHeight}
@@ -540,7 +563,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
           </Defs>
           
           <SvgImage
-            href={sourceImage}
+            href={nailImageUri || sourceImage}
             x={-cropX}
             y={-cropY}
             width={sourceImageDimensions.width}
@@ -566,8 +589,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
                 <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>⊕</Text>
               </Animated.View>
             </GestureDetector>
-            
-            {/* Width Button - Left Middle */}
+
+             {/* Width Button - Left Middle */}
             <GestureDetector gesture={widthControlGesture}>
               <Animated.View style={widthButtonStyle}>
                 <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>w</Text>
