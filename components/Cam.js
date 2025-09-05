@@ -243,7 +243,6 @@ const Cam = ({showCamera=false}) => {
         capturedDirections.forEach((direction, index) => {
           console.log(`   Nail ${index}: ${direction.emoji} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
         });
-
         setNailPolygons(polygons);
         setCapturedNailDirections(capturedDirections);
         setOriginalImageDimensions({
