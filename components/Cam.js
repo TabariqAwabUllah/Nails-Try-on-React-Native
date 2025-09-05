@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
-import Svg, { Defs, ClipPath, Path, Rect, Polygon } from 'react-native-svg';
+import Svg, { Defs, ClipPath, Path, Rect, Polygon, RadialGradient, Stop } from 'react-native-svg';
 import DragAndDrop from './DragAndDrop';
 import RNFS from 'react-native-fs';
 import { processNailsToImages } from './NailImageExtractor';
@@ -40,6 +40,7 @@ const Cam = ({showCamera=false}) => {
   const [capturedNailDirections, setCapturedNailDirections] = useState([]);
   const [designedNailDirections, setDesignedNailDirections] = useState([]);
   const [showDirections, setShowDirections] = useState(false);
+  const [apiCall, setApiCall] = useState(false);
       
   const colors = [
       { name: 'Red', color: '#800020' },
@@ -207,6 +208,11 @@ const Cam = ({showCamera=false}) => {
     checkPermission();
   }, []);
 
+  // Debug: Monitor apiCall state changes
+  useEffect(() => {
+    console.log("🔄 apiCall state changed to:", apiCall);
+  }, [apiCall]);
+
   const takePicture = async () => {
     if(camera!== null){
       const photo = await camera.current.takePhoto()
@@ -224,35 +230,47 @@ const Cam = ({showCamera=false}) => {
   }
 
   const imageToModel = async (imagePath) => {
-    console.log("Image to model pressed", imagePath);
-    
-    const roboflowResponse = await imageAPI(imagePath);
-    console.log("Roboflow response:", roboflowResponse);
-    
-    if(roboflowResponse && roboflowResponse.predictions) {
-        const polygons = roboflowResponse.predictions.map(pred => pred.points);
-        console.log("Nail polygons:", polygons);
+    try {
+      setApiCall(true); // Set to true, not toggle
+      console.log("Image to model pressed", imagePath);
+      
+      const roboflowResponse = await imageAPI(imagePath);
+      console.log("Roboflow response:", roboflowResponse);
+      
+      if(roboflowResponse && roboflowResponse.predictions) {
+          
+          const polygons = roboflowResponse.predictions.map(pred => pred.points);
+          console.log("Nail polygons:", polygons);
 
-        // Detect directions for all captured nails
-        console.log("\n🎯 ===== CAPTURED NAILS DIRECTION ANALYSIS =====");
-        const capturedDirections = polygons.map((polygon, index) => {
-          return detectNailDirection(polygon, index, 'captured');
-        });
-        
-        console.log(`\n📋 CAPTURED NAILS SUMMARY:`);
-        capturedDirections.forEach((direction, index) => {
-          console.log(`   Nail ${index}: ${direction.emoji} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
-        });
-        setNailPolygons(polygons);
-        setCapturedNailDirections(capturedDirections);
-        setOriginalImageDimensions({
-            width: roboflowResponse.image.width,
-            height: roboflowResponse.image.height
-        });
-        setResultImage(imagePath);
-        setColorImage(true);
-        setCameraOn(false);
+          // Detect directions for all captured nails
+          console.log("\n🎯 ===== CAPTURED NAILS DIRECTION ANALYSIS =====");
+          const capturedDirections = polygons.map((polygon, index) => {
+            return detectNailDirection(polygon, index, 'captured');
+          });
+          
+          console.log(`\n📋 CAPTURED NAILS SUMMARY:`);
+          capturedDirections.forEach((direction, index) => {
+            console.log(`   Nail ${index}: ${direction.emoji} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
+          });
+          setNailPolygons(polygons);
+          setCapturedNailDirections(capturedDirections);
+          setOriginalImageDimensions({
+              width: roboflowResponse.image.width,
+              height: roboflowResponse.image.height
+          });
+          setResultImage(imagePath);
+          setColorImage(true);
+          setApiCall(false); // Turn off loading after everything is set
+          setCameraOn(false);
     }
+      
+    } catch (error) {
+      console.log("Image to model error:", error);
+      setApiCall(false);
+      
+      
+    }
+
   }
 
   const designNailsXY = async (imagePath) => {
@@ -433,7 +451,15 @@ const Cam = ({showCamera=false}) => {
   if( colorImage ) {  
     return (
       <View style={styles.container}>
-        <View style={styles.imageContainer}>
+        {/* if API is loading show activity indicator */}
+        
+        {apiCall ? 
+          (<View style={[styles.container, {backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', zIndex: 1000}]}>
+            <ActivityIndicator size="large" color="#ffffff" />
+            <Text style={{color: 'white', marginTop: 10, fontSize: 16}}>Processing nails...</Text>
+          </View>):
+          (
+      <View style={styles.imageContainer}>
             <Image 
                 source={{uri: resultImage}} 
                 style={{ width: '100%', height: '100%'}}
@@ -447,20 +473,12 @@ const Cam = ({showCamera=false}) => {
               style={{position: 'absolute'}}
             >
               <Defs>
-                  {/* Create natural rounded nail clipping masks */}
-                  {/* {!designMode && nailPolygons.map((points, index) => {
-                      try {
-                          const naturalNailPath = polygonUtils.createNaturalNailMask(points);
-                          return (
-                              <ClipPath key={`natural-clip-${index}`} id={`natural-nail-clip-${index}`}>
-                                  <Path d={naturalNailPath} />
-                              </ClipPath>
-                          );
-                      } catch (error) {
-                          console.log(`Error creating clip path for nail ${index}:`, error);
-                          return null;
-                      }
-                  })} */}
+                  {/* Gradient for soft edge fade */}
+                  <RadialGradient id="nailEdgeFade" cx="50%" cy="50%" r="50%">
+                    <Stop offset="85%" stopColor={selectedColor} stopOpacity="1"/>
+                    <Stop offset="95%" stopColor={selectedColor} stopOpacity="0.8"/>
+                    <Stop offset="100%" stopColor={selectedColor} stopOpacity="0.3"/>
+                  </RadialGradient>
               </Defs>
               
               {/* Render slightly smoothed original polygons */}
@@ -478,7 +496,7 @@ const Cam = ({showCamera=false}) => {
                           const next = points[(i + 1) % points.length];
                           
                           // Average with neighbors for slight smoothing
-                          const smoothFactor = 0.15; // Small smoothing amount
+                          const smoothFactor = 0.08; // Even smaller smoothing to maintain coverage
                           const smoothX = point.x + (prev.x +  next.x - 2 * point.x) * smoothFactor;
                           const smoothY = point.y + (prev.y + next.y - 2 * point.y) * smoothFactor;
                           
@@ -488,16 +506,30 @@ const Cam = ({showCamera=false}) => {
                       const pointsString = smoothedPoints.map(p => `${p.x},${p.y}`).join(' ');
                       
                       return(
-                          <Polygon 
-                              key={`smoothed-nail-${index}`}
-                              points={pointsString}
-                              fill={selectedColor}
-                              // fillOpacity="0.95"
-                              stroke={selectedColor}
-                              strokeWidth={2}
-                              strokeLinejoin="round"
-                              strokeLinecap="round"
-                          />
+                          <>
+                              {/* Base layer with wider stroke for anti-aliasing */}
+                              <Polygon 
+                                  key={`base-nail-${index}`}
+                                  points={pointsString}
+                                  fill="none"
+                                  stroke={selectedColor}
+                                  strokeWidth={5} // Wider stroke for smooth edges
+                                  strokeOpacity={0.3}
+                                  strokeLinejoin="round"
+                                  strokeLinecap="round"
+                              />
+                              {/* Main nail layer */}
+                              <Polygon 
+                                  key={`smoothed-nail-${index}`}
+                                  points={pointsString}
+                                  fill={selectedColor}
+                                  fillOpacity="0.95"
+                                  stroke={selectedColor}
+                                  strokeWidth={1} // Thinner main stroke
+                                  strokeLinejoin="round"
+                                  strokeLinecap="round"
+                              />
+                          </>
                       )
                   } catch (error) {
                       console.log(`Error rendering nail ${index}:`, error);
@@ -623,6 +655,8 @@ const Cam = ({showCamera=false}) => {
                 return null;
             })}
         </View>
+    )
+  }   
           
         {/* Color selection buttons */}
         <View style={styles.colorContainer}>
