@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
-import Svg, { Defs, Polygon, ClipPath, Path } from 'react-native-svg';
+import Svg, { Defs, ClipPath, Path, Rect, Polygon } from 'react-native-svg';
 import DragAndDrop from './DragAndDrop';
 import RNFS from 'react-native-fs';
 import { processNailsToImages } from './NailImageExtractor';
 import { detectNailDirection, calculateAlignmentRotation, polygonUtils } from './NailMappingUtils';
+import NailPolygonUtils from './NailPolygonUtils';
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -22,7 +23,7 @@ const Cam = ({showCamera=false}) => {
   const [nailPolygons, setNailPolygons] = useState([]);
   const [designPolygons, setDesignPolygons] = useState([]);
   const [processedDesigns, setProcessedDesigns] = useState([]);
-  const [selectedColor, setSelectedColor] = useState('#FF1493');
+  const [selectedColor, setSelectedColor] = useState('#000000');
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
   const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
@@ -443,52 +444,103 @@ const Cam = ({showCamera=false}) => {
               height="100%" 
               width="100%" 
               viewBox={`0 0 ${originalImageDimensions.width} ${originalImageDimensions.height}`}
+              // viewBox={`0 0 100 100`}
               style={{position: 'absolute'}}
             >
               <Defs>
-                  {/* Create clipping paths for each captured nail */}
-                  {/* {nailPolygons.map((points, index) => {
-                      const pointsString = points.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
-                      return (
-                          <ClipPath key={`clip-${index}`} id={`nail-clip-${index}`}>
-                              <Polygon points={pointsString} />
-                          </ClipPath>
-                      );
-                  })} */}
-                  
-                  {/* Create clipping paths for design nail regions */}
-                  {/* {designMode && processedDesigns?.map?.((design, idx) => {
-                      if (!design || !design.designNail) return null;
-                      
-                      const designPointsString = design.designNail.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
-                      return (
-                          <ClipPath key={`design-clip-${idx}`} id={`design-nail-clip-${idx}`}>
-                              <Polygon points={designPointsString} />
-                          </ClipPath>
-                      );
+                  {/* Create natural rounded nail clipping masks */}
+                  {/* {!designMode && nailPolygons.map((points, index) => {
+                      try {
+                          const naturalNailPath = polygonUtils.createNaturalNailMask(points);
+                          return (
+                              <ClipPath key={`natural-clip-${index}`} id={`natural-nail-clip-${index}`}>
+                                  <Path d={naturalNailPath} />
+                              </ClipPath>
+                          );
+                      } catch (error) {
+                          console.log(`Error creating clip path for nail ${index}:`, error);
+                          return null;
+                      }
                   })} */}
               </Defs>
               
-              {/* Render regular colored nails when not in design mode */}
+              {/* Render slightly smoothed original polygons */}
               {!designMode && nailPolygons.map((points, index) => {
+                console.log(`Points in nailPolygons for nail ${index}:`, points);
+                
                   try {
-                      const pointsString = points.map(p => `${p?.x || 0},${p?.y || 0}`).join(' ');
-
-                          return(
-                              <Polygon 
-                                  key={index}
-                                  points={pointsString}
-                                  fill={selectedColor}
-                                  fillOpacity="20"
-                                  stroke="#000000"
-                                  strokeWidth={2}
-                              />
-                          )
-                    } catch (error) {
+                      // Use original polygon but slightly smooth the edges
+                      const smoothedPoints = points.map((point, i) => {
+                        console.log(`1st Points of ${index}, count: ${i} nail smoothedPoints:`, point);
+                        
+                          const prev = points[(i - 1 + points.length) % points.length];
+                          console.log('Previous point:', prev);
+                          
+                          const next = points[(i + 1) % points.length];
+                          
+                          // Average with neighbors for slight smoothing
+                          const smoothFactor = 0.15; // Small smoothing amount
+                          const smoothX = point.x + (prev.x +  next.x - 2 * point.x) * smoothFactor;
+                          const smoothY = point.y + (prev.y + next.y - 2 * point.y) * smoothFactor;
+                          
+                          return { x: smoothX, y: smoothY };
+                      });
+                      
+                      const pointsString = smoothedPoints.map(p => `${p.x},${p.y}`).join(' ');
+                      
+                      return(
+                          <Polygon 
+                              key={`smoothed-nail-${index}`}
+                              points={pointsString}
+                              fill={selectedColor}
+                              // fillOpacity="0.95"
+                              stroke={selectedColor}
+                              strokeWidth={2}
+                              strokeLinejoin="round"
+                              strokeLinecap="round"
+                          />
+                      )
+                  } catch (error) {
                       console.log(`Error rendering nail ${index}:`, error);
                       return null;
                   }
               })}
+              
+              {/* {!designMode && nailPolygons.map((points, index) => {
+                try {
+                    // Calculate adaptive shrink amount based on image size
+                    const imageArea = originalImageDimensions.width * originalImageDimensions.height;
+                    const shrinkAmount = Math.max(2, Math.min(6, Math.sqrt(imageArea / 200000)));
+                    
+                    // Try different rendering methods in order of preference
+                    
+                    // Method 1: Smooth curved path (best quality)
+                    let nailPath = '';
+                    try {
+                        nailPath = NailPolygonUtils.createSmoothNailPath(points, shrinkAmount);
+                    
+                    
+                    if (nailPath) {
+                        return (
+                            <Path 
+                                key={`nail-path-${index}`}
+                                d={nailPath}
+                                fill={selectedColor}
+                                fillOpacity="0.88"
+                                stroke={selectedColor}
+                                strokeWidth={0.3}
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                            />
+                        );
+                    }
+                    } catch (pathError) {
+                        console.log(`Smooth path failed for nail ${index}:`, pathError);
+                    }
+                  } catch (error) {
+                      console.log(`Error rendering nail ${index}:`, error);
+                      // return null;
+                  }})} */}
             </Svg>
             
             {/* Direction indicators overlay */}
