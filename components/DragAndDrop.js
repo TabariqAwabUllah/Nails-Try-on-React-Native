@@ -87,33 +87,46 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
     return null;
   }
 
-  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight, capturedNailCenter, nailImageUri } = nailData;
+  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight, capturedNailCenter, capturedNailDimensions, nailImageUri } = nailData;
   
-  // Calculate scale to make nail a reasonable size
-  const maxNailSize = 80;
-  const nailScale = Math.min(maxNailSize / bounds.width, maxNailSize / bounds.height);
-  const nailWidth = bounds.width * nailScale;
-  const nailHeight = bounds.height * nailScale;
+  // Calculate scale based on captured nail dimensions if available, otherwise use fixed size
+  let nailWidth, nailHeight;
+  if (capturedNailDimensions) {
+    // Match the captured nail width, scale height proportionally
+    nailWidth = capturedNailDimensions.width;
+    const aspectRatio = bounds.height / bounds.width;
+    nailHeight = nailWidth * aspectRatio;
+    console.log(`🎯 Matching captured nail width: ${nailWidth.toFixed(1)}px, calculated height: ${nailHeight.toFixed(1)}px`);
+  } else {
+    // Fallback to original sizing
+    const maxNailSize = 80;
+    const nailScale = Math.min(maxNailSize / bounds.width, maxNailSize / bounds.height);
+    nailWidth = bounds.width * nailScale;
+    nailHeight = bounds.height * nailScale;
+    console.log(`⚠️ Using fallback sizing: ${nailWidth.toFixed(1)}px x ${nailHeight.toFixed(1)}px`);
+  }
 
   console.log("Nail Width",nailWidth,"Nail Height",nailHeight);
   
 
-  // Position designed nail on top of captured nail if available, otherwise use fallback
+  // Position designed nail directly on top of captured nail center for perfect overlay
   let initialX, initialY;
   
   if (capturedNailCenter) {
+    // Center the designed nail exactly on the captured nail center
     initialX = capturedNailCenter.x - (nailWidth / 2);
     initialY = capturedNailCenter.y - (nailHeight / 2);
 
-    console.log("initialX",initialX,"initialY",initialY, "in If condition");
+    console.log(`🎯 OVERLAY: Positioning designed nail ${index} at (${initialX.toFixed(1)}, ${initialY.toFixed(1)}) over captured nail center (${capturedNailCenter.x.toFixed(1)}, ${capturedNailCenter.y.toFixed(1)})`);
     
   } else {
+    // Fallback positioning if no captured nail center is available
     const screenCenterX = 200; 
     const screenCenterY = 400; 
     initialX = screenCenterX + ((index % 2) * 120) - 60;
     initialY = screenCenterY + (Math.floor(index / 2) * 120) - 60;
 
-    console.log("initialX",initialX,"initialY",initialY, "in else condition");
+    console.log(`⚠️  FALLBACK: Positioning designed nail ${index} at fallback location (${initialX}, ${initialY})`);
   }
 
   // Helper function to calculate angle from nail center to finger position
@@ -545,7 +558,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
           position: 'absolute',
           left: initialX,
           top: initialY,
-          zIndex: isSelected ? 1000 : index,
+          zIndex: isSelected ? 2000 : 1000 + index,
         },
         animatedStyle
       ]}>

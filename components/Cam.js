@@ -142,12 +142,23 @@ const Cam = ({showCamera=false}) => {
           y: p.y - bounds.minY
         }));
         
-        // Calculate captured nail center position if available
+        // Calculate captured nail center position and dimensions if available
         let capturedNailCenter = null;
+        let capturedNailDimensions = null;
         if (capturedNailPolygons && capturedNailPolygons[i] && capturedImageDimensions) {
           const capturedPolygon = capturedNailPolygons[i];
           const capturedCenterX = capturedPolygon.reduce((sum, p) => sum + p.x, 0) / capturedPolygon.length;
           const capturedCenterY = capturedPolygon.reduce((sum, p) => sum + p.y, 0) / capturedPolygon.length;
+          
+          // Calculate captured nail bounds
+          const capturedBounds = {
+            minX: Math.min(...capturedPolygon.map(p => p.x)),
+            minY: Math.min(...capturedPolygon.map(p => p.y)),
+            maxX: Math.max(...capturedPolygon.map(p => p.x)),
+            maxY: Math.max(...capturedPolygon.map(p => p.y))
+          };
+          capturedBounds.width = capturedBounds.maxX - capturedBounds.minX;
+          capturedBounds.height = capturedBounds.maxY - capturedBounds.minY;
           
           // Scale coordinates to screen display size (assuming screen width ~400, height ~800)
           const screenWidth = 400;
@@ -159,7 +170,14 @@ const Cam = ({showCamera=false}) => {
             x: capturedCenterX * scaleX, 
             y: capturedCenterY * scaleY 
           };
+          
+          capturedNailDimensions = {
+            width: capturedBounds.width * scaleX,
+            height: capturedBounds.height * scaleY
+          };
+          
           console.log(`Original center: (${capturedCenterX.toFixed(1)}, ${capturedCenterY.toFixed(1)}) -> Scaled: (${capturedNailCenter.x.toFixed(1)}, ${capturedNailCenter.y.toFixed(1)})`);
+          console.log(`Captured nail dimensions: ${capturedNailDimensions.width.toFixed(1)} x ${capturedNailDimensions.height.toFixed(1)}`);
         }
         
         // Calculate auto-rotation if we have direction data
@@ -186,6 +204,7 @@ const Cam = ({showCamera=false}) => {
           cropWidth: bounds.width,
           cropHeight: bounds.height,
           capturedNailCenter: capturedNailCenter, // Position to place designed nail
+          capturedNailDimensions: capturedNailDimensions, // Captured nail size for matching
           initialRotation: initialRotation, // Auto-rotation angle in radians
           shouldAutoRotate: shouldAutoRotate,
           designedDirection: designedDirections[i],
@@ -434,7 +453,7 @@ const Cam = ({showCamera=false}) => {
           </View>
         ):(
           <View style={styles.container}>
-            <Image source={{uri : photoPath}} style={{height: '100%', width: '100%'}} resizeMode='contain'/>
+            <Image source={{uri : photoPath}} style={{height: '100%', width: '100%'}}/>
             <TouchableOpacity style={styles.capButton} onPress={()=>backToCamera()}>
               <Text>Back to Camera</Text>
             </TouchableOpacity>
@@ -452,211 +471,203 @@ const Cam = ({showCamera=false}) => {
     return (
       <View style={styles.container}>
         {/* if API is loading show activity indicator */}
-        
-        {apiCall ? 
-          (<View style={[styles.container, {backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', zIndex: 1000}]}>
-            <ActivityIndicator size="large" color="#ffffff" />
-            <Text style={{color: 'white', marginTop: 10, fontSize: 16}}>Processing nails...</Text>
-          </View>):
-          (
-      <View style={styles.imageContainer}>
-            <Image 
-                source={{uri: resultImage}} 
-                style={{ width: '100%', height: '100%'}}
-                resizeMode='contain'
-            />
-            <Svg 
-              height="100%" 
-              width="100%" 
-              viewBox={`0 0 ${originalImageDimensions.width} ${originalImageDimensions.height}`}
-              // viewBox={`0 0 100 100`}
-              style={{position: 'absolute'}}
-            >
-              <Defs>
-                  {/* Gradient for soft edge fade */}
-                  <RadialGradient id="nailEdgeFade" cx="50%" cy="50%" r="50%">
-                    <Stop offset="85%" stopColor={selectedColor} stopOpacity="1"/>
-                    <Stop offset="95%" stopColor={selectedColor} stopOpacity="0.8"/>
-                    <Stop offset="100%" stopColor={selectedColor} stopOpacity="0.3"/>
-                  </RadialGradient>
-              </Defs>
+        <View style={styles.imageContainer}>
+          <Image 
+              source={{uri: resultImage}} 
+              style={{ width: '100%', height: '100%'}}
+              resizeMode='contain'
+          />
+          <Svg 
+            height="100%" 
+            width="100%" 
+            viewBox={`0 0 ${originalImageDimensions.width} ${originalImageDimensions.height}`}
+            // viewBox={`0 0 100 100`}
+            style={{position: 'absolute'}}
+          >
+            <Defs>
+                {/* Gradient for soft edge fade */}
+                <RadialGradient id="nailEdgeFade" cx="50%" cy="50%" r="50%">
+                  <Stop offset="85%" stopColor={selectedColor} stopOpacity="1"/>
+                  <Stop offset="95%" stopColor={selectedColor} stopOpacity="0.8"/>
+                  <Stop offset="100%" stopColor={selectedColor} stopOpacity="0.3"/>
+                </RadialGradient>
+            </Defs>
+            
+            {/* Render slightly smoothed original polygons */}
+            {!designMode && nailPolygons.map((points, index) => {
+              // console.log(`Points in nailPolygons for nail ${index}:`, points);
               
-              {/* Render slightly smoothed original polygons */}
-              {!designMode && nailPolygons.map((points, index) => {
-                console.log(`Points in nailPolygons for nail ${index}:`, points);
-                
-                  try {
-                      // Use original polygon but slightly smooth the edges
-                      const smoothedPoints = points.map((point, i) => {
-                        console.log(`1st Points of ${index}, count: ${i} nail smoothedPoints:`, point);
-                        
-                          const prev = points[(i - 1 + points.length) % points.length];
-                          console.log('Previous point:', prev);
-                          
-                          const next = points[(i + 1) % points.length];
-                          
-                          // Average with neighbors for slight smoothing
-                          const smoothFactor = 0.08; // Even smaller smoothing to maintain coverage
-                          const smoothX = point.x + (prev.x +  next.x - 2 * point.x) * smoothFactor;
-                          const smoothY = point.y + (prev.y + next.y - 2 * point.y) * smoothFactor;
-                          
-                          return { x: smoothX, y: smoothY };
-                      });
-                      
-                      const pointsString = smoothedPoints.map(p => `${p.x},${p.y}`).join(' ');
-                      
-                      return(
-                          <>
-                              {/* Base layer with wider stroke for anti-aliasing */}
-                              <Polygon 
-                                  key={`base-nail-${index}`}
-                                  points={pointsString}
-                                  fill="none"
-                                  stroke={selectedColor}
-                                  strokeWidth={5} // Wider stroke for smooth edges
-                                  strokeOpacity={0.3}
-                                  strokeLinejoin="round"
-                                  strokeLinecap="round"
-                              />
-                              {/* Main nail layer */}
-                              <Polygon 
-                                  key={`smoothed-nail-${index}`}
-                                  points={pointsString}
-                                  fill={selectedColor}
-                                  fillOpacity="0.95"
-                                  stroke={selectedColor}
-                                  strokeWidth={1} // Thinner main stroke
-                                  strokeLinejoin="round"
-                                  strokeLinecap="round"
-                              />
-                          </>
-                      )
-                  } catch (error) {
-                      console.log(`Error rendering nail ${index}:`, error);
-                      return null;
-                  }
-              })}
-              
-              {/* {!designMode && nailPolygons.map((points, index) => {
                 try {
-                    // Calculate adaptive shrink amount based on image size
-                    const imageArea = originalImageDimensions.width * originalImageDimensions.height;
-                    const shrinkAmount = Math.max(2, Math.min(6, Math.sqrt(imageArea / 200000)));
+                    // Use original polygon but slightly smooth the edges
+                    const smoothedPoints = points.map((point, i) => {
+                      // console.log(`1st Points of ${index}, count: ${i} nail smoothedPoints:`, point);
+                      
+                        const prev = points[(i - 1 + points.length) % points.length];
+                        // console.log('Previous point:', prev);
+                        
+                        const next = points[(i + 1) % points.length];
+                        
+                        // Average with neighbors for slight smoothing
+                        const smoothFactor = 0.08; // Even smaller smoothing to maintain coverage
+                        const smoothX = point.x + (prev.x +  next.x - 2 * point.x) * smoothFactor;
+                        const smoothY = point.y + (prev.y + next.y - 2 * point.y) * smoothFactor;
+                        
+                        return { x: smoothX, y: smoothY };
+                    });
                     
-                    // Try different rendering methods in order of preference
+                    const pointsString = smoothedPoints.map(p => `${p.x},${p.y}`).join(' ');
                     
-                    // Method 1: Smooth curved path (best quality)
-                    let nailPath = '';
-                    try {
-                        nailPath = NailPolygonUtils.createSmoothNailPath(points, shrinkAmount);
-                    
-                    
-                    if (nailPath) {
-                        return (
-                            <Path 
-                                key={`nail-path-${index}`}
-                                d={nailPath}
-                                fill={selectedColor}
-                                fillOpacity="0.88"
+                    return(
+                        <>
+                            {/* Base layer with wider stroke for anti-aliasing */}
+                            <Polygon 
+                                key={`base-nail-${index}`}
+                                points={pointsString}
+                                fill="none"
                                 stroke={selectedColor}
-                                strokeWidth={0.3}
+                                strokeWidth={5} // Wider stroke for smooth edges
+                                strokeOpacity={0.3}
                                 strokeLinejoin="round"
                                 strokeLinecap="round"
                             />
-                        );
-                    }
-                    } catch (pathError) {
-                        console.log(`Smooth path failed for nail ${index}:`, pathError);
-                    }
-                  } catch (error) {
-                      console.log(`Error rendering nail ${index}:`, error);
-                      // return null;
-                  }})} */}
-            </Svg>
+                            {/* Main nail layer */}
+                            <Polygon 
+                                key={`smoothed-nail-${index}`}
+                                points={pointsString}
+                                fill={selectedColor}
+                                fillOpacity="0.95"
+                                stroke={selectedColor}
+                                strokeWidth={1} // Thinner main stroke
+                                strokeLinejoin="round"
+                                strokeLinecap="round"
+                            />
+                        </>
+                    )
+                } catch (error) {
+                    console.log(`Error rendering nail ${index}:`, error);
+                    return null;
+                }
+            })}
             
-            {/* Direction indicators overlay */}
-            {showDirections && capturedNailDirections.length > 0 && capturedNailDirections.map((direction, index) => {
-                if (nailPolygons[index]) {
-                    const bounds = {
-                        minX: Math.min(...nailPolygons[index].map(p => p?.x || 0)),
-                        minY: Math.min(...nailPolygons[index].map(p => p?.y || 0)),
-                        maxX: Math.max(...nailPolygons[index].map(p => p?.x || 0)),
-                        maxY: Math.max(...nailPolygons[index].map(p => p?.y || 0))
-                    };
-                    const centerX = (bounds.minX + bounds.maxX) / 2;
-                    const centerY = (bounds.minY + bounds.maxY) / 2;
-                    
-                    // Scale coordinates to match image display
-                    const scaleX = 400 / originalImageDimensions.width; // Assuming ~400px display width
-                    const scaleY = 800 / originalImageDimensions.height; // Assuming ~800px display height
-                    
-                    return (
-                        <View
-                            key={`direction-${index}`}
-                            style={[styles.directionOverlay,{
-                                left: centerX * scaleX - 15,
-                                top: centerY * scaleY - 15,
+            {/* {!designMode && nailPolygons.map((points, index) => {
+              try {
+                  // Calculate adaptive shrink amount based on image size
+                  const imageArea = originalImageDimensions.width * originalImageDimensions.height;
+                  const shrinkAmount = Math.max(2, Math.min(6, Math.sqrt(imageArea / 200000)));
+                  
+                  // Try different rendering methods in order of preference
+                  
+                  // Method 1: Smooth curved path (best quality)
+                  let nailPath = '';
+                  try {
+                      nailPath = NailPolygonUtils.createSmoothNailPath(points, shrinkAmount);
+                  
+                  
+                  if (nailPath) {
+                      return (
+                          <Path 
+                              key={`nail-path-${index}`}
+                              d={nailPath}
+                              fill={selectedColor}
+                              fillOpacity="0.88"
+                              stroke={selectedColor}
+                              strokeWidth={0.3}
+                              strokeLinejoin="round"
+                              strokeLinecap="round"
+                          />
+                      );
+                  }
+                  } catch (pathError) {
+                      console.log(`Smooth path failed for nail ${index}:`, pathError);
+                  }
+                } catch (error) {
+                    console.log(`Error rendering nail ${index}:`, error);
+                    // return null;
+                }})} */}
+          </Svg>
+          
+          {/* Direction indicators overlay */}
+          {showDirections && capturedNailDirections.length > 0 && capturedNailDirections.map((direction, index) => {
+              if (nailPolygons[index]) {
+                  const bounds = {
+                      minX: Math.min(...nailPolygons[index].map(p => p?.x || 0)),
+                      minY: Math.min(...nailPolygons[index].map(p => p?.y || 0)),
+                      maxX: Math.max(...nailPolygons[index].map(p => p?.x || 0)),
+                      maxY: Math.max(...nailPolygons[index].map(p => p?.y || 0))
+                  };
+                  const centerX = (bounds.minX + bounds.maxX) / 2;
+                  const centerY = (bounds.minY + bounds.maxY) / 2;
+                  
+                  // Scale coordinates to match image display
+                  const scaleX = 400 / originalImageDimensions.width; // Assuming ~400px display width
+                  const scaleY = 800 / originalImageDimensions.height; // Assuming ~800px display height
+                  
+                  return (
+                      <View
+                          key={`direction-${index}`}
+                          style={[styles.directionOverlay,{
+                              left: centerX * scaleX - 15,
+                              top: centerY * scaleY - 15,
 
+                          }]}
+                      >
+                          <Text style={{
+                              color: 'white',
+                              fontSize: 16,
+                              fontWeight: 'bold'
+                          }}>
+                              {direction.emoji}
+                          </Text>
+                      </View>
+                  );
+              }
+              return null;
+          })}
+          
+          {/* Render draggable design nails outside SVG context */}
+          {/* {designMode && extractedNailImages?.length > 0 && console.log("Rendering", extractedNailImages.length, "extracted nails")} */}
+          {designMode && extractedNailImages?.map?.((nailData, index) => (
+              <DragAndDrop
+                  key={`nail-${index}`}
+                  nailData={nailData}
+                  index={index}
+                  designImageDimensions={designImageDimensions}
+                  originalImageDimensions={originalImageDimensions}
+                  isSelected={selectedNailIndex === index}
+                  onTransformChange={(transforms) => handleNailTransform(index, transforms)}
+                  onSelect={() => handleNailSelection(index)}
+                  onDeselect={handleDeselectNail}
+              />
+          ))}
+
+          {/* Direction indicators for designed nails */}
+          {showDirections && designMode && designedNailDirections.length > 0 && extractedNailImages?.map?.((nailData, index) => {
+              const direction = designedNailDirections[index];
+              if (direction && nailData?.capturedNailCenter) {
+                  const letter = getDirectionLetter(direction.direction);
+                  
+                  return (
+                      <View
+                          key={`designed-direction-${index}`}
+                          style={[styles.directionIndicator, {     
+                            left: nailData.capturedNailCenter.x - 10,
+                            top: nailData.capturedNailCenter.y - 35,
                             }]}
-                        >
-                            <Text style={{
-                                color: 'white',
-                                fontSize: 16,
-                                fontWeight: 'bold'
-                            }}>
-                                {direction.emoji}
-                            </Text>
-                        </View>
-                    );
-                }
-                return null;
-            })}
-            
-            {/* Render draggable design nails outside SVG context */}
-            {/* {designMode && extractedNailImages?.length > 0 && console.log("Rendering", extractedNailImages.length, "extracted nails")} */}
-            {designMode && extractedNailImages?.map?.((nailData, index) => (
-                <DragAndDrop
-                    key={`nail-${index}`}
-                    nailData={nailData}
-                    index={index}
-                    designImageDimensions={designImageDimensions}
-                    originalImageDimensions={originalImageDimensions}
-                    isSelected={selectedNailIndex === index}
-                    onTransformChange={(transforms) => handleNailTransform(index, transforms)}
-                    onSelect={() => handleNailSelection(index)}
-                    onDeselect={handleDeselectNail}
-                />
-            ))}
-
-            {/* Direction indicators for designed nails */}
-            {showDirections && designMode && designedNailDirections.length > 0 && extractedNailImages?.map?.((nailData, index) => {
-                const direction = designedNailDirections[index];
-                if (direction && nailData?.capturedNailCenter) {
-                    const letter = getDirectionLetter(direction.direction);
-                    
-                    return (
-                        <View
-                            key={`designed-direction-${index}`}
-                            style={[styles.directionIndicator, {     
-                               left: nailData.capturedNailCenter.x - 10,
-                               top: nailData.capturedNailCenter.y - 35,
-                              }]}
-                        >
-                            <Text style={{
-                                color: 'white',
-                                fontSize: 12,
-                                fontWeight: 'bold'
-                            }}>
-                                {letter}
-                            </Text>
-                        </View>
-                    );
-                }
-                return null;
-            })}
+                      >
+                          <Text style={{
+                              color: 'white',
+                              fontSize: 12,
+                              fontWeight: 'bold'
+                          }}>
+                              {letter}
+                          </Text>
+                      </View>
+                  );
+              }
+              return null;
+          })}
         </View>
-    )
-  }   
+    
           
         {/* Color selection buttons */}
         <View style={styles.colorContainer}>
