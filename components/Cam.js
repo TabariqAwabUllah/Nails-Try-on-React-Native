@@ -453,7 +453,7 @@ const Cam = ({showCamera=false}) => {
           </View>
         ):(
           <View style={styles.container}>
-            <Image source={{uri : photoPath}} style={{height: '100%', width: '100%'}}/>
+            <Image source={{uri : photoPath}} style={{height: '100%', width: '100%'}}  resizeMode='cover'/>
             <TouchableOpacity style={styles.capButton} onPress={()=>backToCamera()}>
               <Text>Back to Camera</Text>
             </TouchableOpacity>
@@ -490,6 +490,12 @@ const Cam = ({showCamera=false}) => {
                   <Stop offset="85%" stopColor={selectedColor} stopOpacity="1"/>
                   <Stop offset="95%" stopColor={selectedColor} stopOpacity="0.8"/>
                   <Stop offset="100%" stopColor={selectedColor} stopOpacity="0.3"/>
+                </RadialGradient>
+                {/* Glossy highlight gradient */}
+                <RadialGradient id="nailGloss" cx="40%" cy="30%" r="60%">
+                  <Stop offset="0%" stopColor="white" stopOpacity="0.6"/>
+                  <Stop offset="50%" stopColor="white" stopOpacity="0.2"/>
+                  <Stop offset="100%" stopColor="white" stopOpacity="0"/>
                 </RadialGradient>
             </Defs>
             
