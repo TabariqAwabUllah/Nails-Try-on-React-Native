@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator } from 'rea
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Cam from './components/Cam';
+import CamMediaPipe from './mediaPipe/CamMediaPipe';
 
 const App = () => {
   // const [hasPermission, setHasPermission] = useState(false);
@@ -21,7 +22,8 @@ const App = () => {
   return (
     <GestureHandlerRootView style={styles.container}>
       {showCamera ? (
-        <Cam showCamera={showCamera}/>
+        <CamMediaPipe showCamera={showCamera}/>
+        // <Cam showCamera={showCamera}/>   Roboflow Component
       ) : (
         <View style={styles.center}>
           <TouchableOpacity style={{backgroundColor: 'blue', padding: 15, borderRadius: 8}} onPress={showCam}>
