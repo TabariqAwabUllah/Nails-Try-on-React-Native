@@ -504,14 +504,20 @@ const Cam = ({showCamera=false}) => {
               // console.log(`Points in nailPolygons for nail ${index}:`, points);
               
                 try {
-                    // Try simple expansion first
-                    let expandedPoints = NailPolygonUtils.expandPolygonSimple(points, 8);
+                    // Intelligent adaptive expansion with hand analysis
+                    let expandedPoints = NailPolygonUtils.intelligentAdaptiveExpansion(
+                        points,
+                        nailPolygons,
+                        index,
+                        originalImageDimensions,
+                        6
+                    );
 
-                    // Apply morphological dilation for better coverage
-                    expandedPoints = NailPolygonUtils.dilatePolygonEnhanced(expandedPoints, 3);
+                    // Light dilation with conservative parameters
+                    expandedPoints = NailPolygonUtils.dilatePolygonEnhanced(expandedPoints, 1);
 
-                    // Light smoothing to remove any artifacts
-                    expandedPoints = NailPolygonUtils.smoothPolygonEdges(expandedPoints, 2);
+                    // Final smoothing to maintain natural shape
+                    expandedPoints = NailPolygonUtils.smoothPolygonEdges(expandedPoints, 1);
 
                     const pointsString = expandedPoints.map(p => `${p.x},${p.y}`).join(' ');
 

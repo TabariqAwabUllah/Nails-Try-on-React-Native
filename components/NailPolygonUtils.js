@@ -388,11 +388,15 @@ const NailPolygonUtils = {
   },
 
   // Method 10: Size-adaptive expansion for different nail sizes
-  adaptiveExpansion: (points, baseExpansionAmount = 6) => {
+  // Method 10: Intelligent adaptive expansion with hand analysis
+  intelligentAdaptiveExpansion: (points, allNailPolygons = [], nailIndex = 0, imageDimensions = {}, baseExpansionAmount = 6) => {
     if (!points || points.length < 3) return points;
 
     try {
-      // Calculate nail size to adapt expansion
+      // Analyze hand position and nail arrangement
+      const handAnalysis = NailPolygonUtils.analyzeHandPosition(allNailPolygons, imageDimensions);
+
+      // Calculate nail-specific properties
       const bounds = {
         minX: Math.min(...points.map(p => p?.x || 0)),
         minY: Math.min(...points.map(p => p?.y || 0)),
@@ -404,19 +408,24 @@ const NailPolygonUtils = {
       const nailHeight = bounds.maxY - bounds.minY;
       const nailArea = nailWidth * nailHeight;
 
-      // Adapt expansion based on nail size
-      // Smaller nails (like little finger) get less expansion
-      // Larger nails (like middle finger) get normal expansion
+      // Size-based multiplier
       let sizeMultiplier = 1.0;
-      if (nailArea < 800) { // Very small nail
-        sizeMultiplier = 0.5;
-      } else if (nailArea < 1500) { // Small nail
-        sizeMultiplier = 0.7;
-      } else if (nailArea > 3000) { // Large nail
-        sizeMultiplier = 1.2;
-      }
+      if (nailArea < 800) sizeMultiplier = 0.4;
+      else if (nailArea < 1500) sizeMultiplier = 0.6;
+      else if (nailArea > 3000) sizeMultiplier = 1.1;
 
-      const adaptedExpansion = baseExpansionAmount * sizeMultiplier;
+      // Hand position multiplier (reduce expansion for angled hands)
+      const positionMultiplier = handAnalysis.isAngledHand ? 0.6 : 1.0;
+
+      // Nail density multiplier (reduce expansion if nails are close together)
+      const densityMultiplier = handAnalysis.nailDensity > 0.7 ? 0.7 : 1.0;
+
+      // Edge detection multiplier (reduce expansion near detected edges)
+      const edgeMultiplier = NailPolygonUtils.detectNailBoundaryRisk(points, nailIndex);
+
+      // Combine all factors
+      const finalMultiplier = sizeMultiplier * positionMultiplier * densityMultiplier * edgeMultiplier;
+      const adaptedExpansion = baseExpansionAmount * finalMultiplier;
 
       // Calculate centroid
       const centroid = {
@@ -440,14 +449,14 @@ const NailPolygonUtils = {
           const normalizedX = dirX / distance;
           const normalizedY = dirY / distance;
 
-          // Gentler corner expansion for smaller nails
+          // Smart corner expansion based on hand analysis
           const prevDir = Math.atan2(current.y - prev.y, current.x - prev.x);
           const nextDir = Math.atan2(next.y - current.y, next.x - current.x);
           let angleDiff = Math.abs(nextDir - prevDir);
           if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
 
-          // Reduce corner multiplier for smaller nails
-          const maxCornerMultiplier = sizeMultiplier < 0.8 ? 0.2 : 0.4;
+          // Reduce corner expansion for risky scenarios
+          const maxCornerMultiplier = handAnalysis.isAngledHand ? 0.1 : 0.3;
           const cornerMultiplier = 1 + (angleDiff / Math.PI) * maxCornerMultiplier;
 
           expandedPoints.push({
@@ -461,8 +470,101 @@ const NailPolygonUtils = {
 
       return expandedPoints;
     } catch (error) {
-      console.log('Error in adaptive expansion:', error);
+      console.log('Error in intelligent adaptive expansion:', error);
       return points;
+    }
+  },
+
+  // Method 11: Analyze overall hand position and arrangement
+  analyzeHandPosition: (allNailPolygons, imageDimensions) => {
+    try {
+      if (!allNailPolygons || allNailPolygons.length === 0) {
+        return { isAngledHand: false, nailDensity: 0.5, handOrientation: 'flat' };
+      }
+
+      // Calculate overall nail distribution
+      let totalMinX = Infinity, totalMaxX = -Infinity;
+      let totalMinY = Infinity, totalMaxY = -Infinity;
+      let totalArea = 0;
+
+      allNailPolygons.forEach(nail => {
+        const bounds = {
+          minX: Math.min(...nail.map(p => p?.x || 0)),
+          minY: Math.min(...nail.map(p => p?.y || 0)),
+          maxX: Math.max(...nail.map(p => p?.x || 0)),
+          maxY: Math.max(...nail.map(p => p?.y || 0))
+        };
+
+        totalMinX = Math.min(totalMinX, bounds.minX);
+        totalMaxX = Math.max(totalMaxX, bounds.maxX);
+        totalMinY = Math.min(totalMinY, bounds.minY);
+        totalMaxY = Math.max(totalMaxY, bounds.maxY);
+        totalArea += (bounds.maxX - bounds.minX) * (bounds.maxY - bounds.minY);
+      });
+
+      const handWidth = totalMaxX - totalMinX;
+      const handHeight = totalMaxY - totalMinY;
+      const aspectRatio = handWidth / handHeight;
+
+      // Detect angled hand (when nails are arranged more vertically)
+      const isAngledHand = aspectRatio < 1.2; // More vertical = angled
+
+      // Calculate nail density (how tightly packed nails are)
+      const handBoundingArea = handWidth * handHeight;
+      const nailDensity = totalArea / handBoundingArea;
+
+      // Determine orientation
+      const handOrientation = aspectRatio > 2 ? 'horizontal' : aspectRatio < 0.8 ? 'vertical' : 'angled';
+
+      return {
+        isAngledHand,
+        nailDensity: Math.min(1.0, nailDensity),
+        handOrientation,
+        aspectRatio
+      };
+    } catch (error) {
+      console.log('Error analyzing hand position:', error);
+      return { isAngledHand: false, nailDensity: 0.5, handOrientation: 'flat' };
+    }
+  },
+
+  // Method 12: Detect risk of expansion going beyond nail boundaries
+  detectNailBoundaryRisk: (points, nailIndex) => {
+    try {
+      // Analyze nail shape to detect risk areas
+      const centroid = {
+        x: points.reduce((sum, p) => sum + (p?.x || 0), 0) / points.length,
+        y: points.reduce((sum, p) => sum + (p?.y || 0), 0) / points.length
+      };
+
+      let riskScore = 1.0; // Start with full expansion
+
+      // Check for irregular nail shapes (high risk for spillover)
+      let irregularityScore = 0;
+      for (let i = 0; i < points.length; i++) {
+        const current = points[i];
+        const next = points[(i + 1) % points.length];
+
+        const currentDist = Math.sqrt(Math.pow(current.x - centroid.x, 2) + Math.pow(current.y - centroid.y, 2));
+        const nextDist = Math.sqrt(Math.pow(next.x - centroid.x, 2) + Math.pow(next.y - centroid.y, 2));
+
+        const distDiff = Math.abs(currentDist - nextDist);
+        irregularityScore += distDiff;
+      }
+
+      const avgIrregularity = irregularityScore / points.length;
+
+      // High irregularity = reduce expansion
+      if (avgIrregularity > 15) riskScore *= 0.6; // Very irregular
+      else if (avgIrregularity > 8) riskScore *= 0.8; // Somewhat irregular
+
+      // Thumb and pinky typically need more conservative expansion
+      if (nailIndex === 0 || nailIndex === 4) riskScore *= 0.8;
+
+      return Math.max(0.3, riskScore); // Never go below 30% expansion
+    } catch (error) {
+      console.log('Error detecting boundary risk:', error);
+      return 0.8; // Conservative fallback
     }
   }
 };
