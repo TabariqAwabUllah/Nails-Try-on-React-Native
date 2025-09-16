@@ -508,7 +508,7 @@ const Cam = ({showCamera=false}) => {
                     let expandedPoints = NailPolygonUtils.expandPolygonSimple(points, 8);
 
                     // Apply morphological dilation for better coverage
-                    expandedPoints = NailPolygonUtils.dilatePolygon(expandedPoints, 3);
+                    expandedPoints = NailPolygonUtils.dilatePolygonEnhanced(expandedPoints, 3);
 
                     // Light smoothing to remove any artifacts
                     expandedPoints = NailPolygonUtils.smoothPolygonEdges(expandedPoints, 2);
