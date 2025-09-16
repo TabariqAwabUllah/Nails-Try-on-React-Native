@@ -504,50 +504,23 @@ const Cam = ({showCamera=false}) => {
               // console.log(`Points in nailPolygons for nail ${index}:`, points);
               
                 try {
-                    // Use original polygon but slightly smooth the edges
-                    const smoothedPoints = points.map((point, i) => {
-                      // console.log(`1st Points of ${index}, count: ${i} nail smoothedPoints:`, point);
-                      
-                        const prev = points[(i - 1 + points.length) % points.length];
-                        // console.log('Previous point:', prev);
-                        
-                        const next = points[(i + 1) % points.length];
-                        
-                        // Average with neighbors for slight smoothing
-                        const smoothFactor = 0.08; // Even smaller smoothing to maintain coverage
-                        const smoothX = point.x + (prev.x +  next.x - 2 * point.x) * smoothFactor;
-                        const smoothY = point.y + (prev.y + next.y - 2 * point.y) * smoothFactor;
-                        
-                        return { x: smoothX, y: smoothY };
-                    });
-                    
-                    const pointsString = smoothedPoints.map(p => `${p.x},${p.y}`).join(' ');
-                    
-                    return(
-                        <>
-                            {/* Base layer with wider stroke for anti-aliasing */}
-                            <Polygon 
-                                key={`base-nail-${index}`}
-                                points={pointsString}
-                                fill="none"
-                                stroke={selectedColor}
-                                strokeWidth={5} // Wider stroke for smooth edges
-                                strokeOpacity={0.3}
-                                strokeLinejoin="round"
-                                strokeLinecap="round"
-                            />
-                            {/* Main nail layer */}
-                            <Polygon 
-                                key={`smoothed-nail-${index}`}
-                                points={pointsString}
-                                fill={selectedColor}
-                                fillOpacity="0.95"
-                                stroke={selectedColor}
-                                strokeWidth={1} // Thinner main stroke
-                                strokeLinejoin="round"
-                                strokeLinecap="round"
-                            />
-                        </>
+                    // Try simple expansion first
+                    let expandedPoints = NailPolygonUtils.expandPolygonSimple(points, 8);
+
+                    // Apply morphological dilation for better coverage
+                    expandedPoints = NailPolygonUtils.dilatePolygon(expandedPoints, 3);
+
+                    // Light smoothing to remove any artifacts
+                    expandedPoints = NailPolygonUtils.smoothPolygonEdges(expandedPoints, 2);
+
+                    const pointsString = expandedPoints.map(p => `${p.x},${p.y}`).join(' ');
+
+                    return (
+                        <Polygon
+                            key={`nail-${index}`}
+                            points={pointsString}
+                            fill={selectedColor}
+                        />
                     )
                 } catch (error) {
                     console.log(`Error rendering nail ${index}:`, error);
