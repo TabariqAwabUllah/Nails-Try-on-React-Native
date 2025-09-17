@@ -51,6 +51,8 @@ const Cam = ({showCamera=false}) => {
       { name: 'Black', color: '#000000' },
       // { name: 'White', color: '#FFFFFF' },
       // { name: 'Gold', color: '#FFBf00' }
+      {name: 'Nude', color: '#D2B48C'},
+      {name: 'Shiny', color: '#aebbff'},
   ];
 
   const applyColor = (color) => {
@@ -499,25 +501,42 @@ const Cam = ({showCamera=false}) => {
                 </RadialGradient>
             </Defs>
             
-            {/* Render slightly smoothed original polygons */}
+            {/* Render adaptive polygons with nail-specific parameters */}
             {!designMode && nailPolygons.map((points, index) => {
-              // console.log(`Points in nailPolygons for nail ${index}:`, points);
-              
                 try {
-                    // Intelligent adaptive expansion with hand analysis
-                    let expandedPoints = NailPolygonUtils.intelligentAdaptiveExpansion(
-                        points,
-                        nailPolygons,
-                        index,
-                        originalImageDimensions,
-                        6
-                    );
+                    // Calculate nail characteristics for adaptive parameters
+                    const bounds = {
+                        minX: Math.min(...points.map(p => p.x)),
+                        minY: Math.min(...points.map(p => p.y)),
+                        maxX: Math.max(...points.map(p => p.x)),
+                        maxY: Math.max(...points.map(p => p.y))
+                    };
+                    const nailWidth = bounds.maxX - bounds.minX;
+                    const nailHeight = bounds.maxY - bounds.minY;
+                    const nailArea = nailWidth * nailHeight;
+                    const aspectRatio = nailWidth / nailHeight;
 
-                    // Light dilation with conservative parameters
-                    expandedPoints = NailPolygonUtils.dilatePolygonEnhanced(expandedPoints, 1);
+                    // Calculate adaptive expansion based on nail size
+                    // Using inverse relationship for better small nail coverage
+                    const inverseExpansion = 15 - (nailArea / 500);
+                    const sizeBasedExpansion = Math.max(5, Math.min(15, inverseExpansion));
 
-                    // Final smoothing to maintain natural shape
-                    expandedPoints = NailPolygonUtils.smoothPolygonEdges(expandedPoints, 1);
+                    // Adjust for aspect ratio - very wide or tall nails might need different treatment
+                    const aspectAdjustment = aspectRatio > 2 || aspectRatio < 0.5 ? 1.3 : 1.0;
+                    const finalExpansion = sizeBasedExpansion * aspectAdjustment;
+
+                    // Calculate adaptive dilation (more aggressive for smaller nails)
+                    const dilationAmount = Math.max(2, Math.min(7, 10 - (nailArea / 1500)));
+
+                    // Calculate adaptive smoothing (less smoothing for smaller nails to preserve detail)
+                    const smoothingAmount = nailArea > 3000 ? 3 : 1;
+
+                    console.log(`Nail ${index}: area=${nailArea.toFixed(0)}, expansion=${finalExpansion.toFixed(1)}, dilation=${dilationAmount.toFixed(1)}, smoothing=${smoothingAmount}`);
+
+                    // Apply adaptive parameters
+                    let expandedPoints = NailPolygonUtils.expandPolygonSimple(points, finalExpansion);
+                    expandedPoints = NailPolygonUtils.dilatePolygonEnhanced(expandedPoints, dilationAmount);
+                    expandedPoints = NailPolygonUtils.smoothPolygonEdges(expandedPoints, smoothingAmount);
 
                     const pointsString = expandedPoints.map(p => `${p.x},${p.y}`).join(' ');
 
