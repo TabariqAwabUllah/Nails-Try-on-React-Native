@@ -8,6 +8,7 @@ import RNFS from 'react-native-fs';
 import { processNailsToImages } from './NailImageExtractor';
 import { detectNailDirection, calculateAlignmentRotation, polygonUtils } from './NailMappingUtils';
 import NailPolygonUtils from './NailPolygonUtils';
+import LinearGradient from 'react-native-linear-gradient';
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
