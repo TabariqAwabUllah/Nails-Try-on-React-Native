@@ -53,7 +53,7 @@ const Cam = ({showCamera=false}) => {
       // { name: 'White', color: '#FFFFFF' },
       // { name: 'Gold', color: '#FFBf00' }
       {name: 'Nude', color: '#D2B48C'},
-      {name: 'Shiny', color: '#aebbff'},
+      // {name: 'Shiny', color: '#aebbff'},
   ];
 
   const applyColor = (color) => {
@@ -461,7 +461,14 @@ const Cam = ({showCamera=false}) => {
               <Text>Back to Camera</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.modelButton} onPress={()=>imageToModel(photoPath)}>
-              <Text>Go for nail detection</Text>
+              {
+                apiCall ? (
+                  <ActivityIndicator size="small" color="#3a9c37ff" />
+                ):(
+                  <Text>Go for nail detection</Text>
+                )
+              }
+              
             </TouchableOpacity>
           </View>
         )
