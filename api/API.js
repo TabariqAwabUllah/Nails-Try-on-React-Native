@@ -21,6 +21,7 @@ export async function imageAPI(imageGot) {
         return response.data;
     } catch (error) {
         console.log("Error in imageAPI:", error);
+        return error
         
     }
 }

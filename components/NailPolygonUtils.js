@@ -314,6 +314,74 @@ const NailPolygonUtils = {
     }
   },
 
+  // Method 8b: Specialized bottom edge curvature enhancement
+  enhanceBottomCurvature: (points, expansionAmount = 8) => {
+    if (!points || points.length < 3) return points;
+
+    try {
+      const bounds = {
+        minX: Math.min(...points.map(p => p?.x || 0)),
+        minY: Math.min(...points.map(p => p?.y || 0)),
+        maxX: Math.max(...points.map(p => p?.x || 0)),
+        maxY: Math.max(...points.map(p => p?.y || 0))
+      };
+
+      const nailWidth = bounds.maxX - bounds.minX;
+      const nailHeight = bounds.maxY - bounds.minY;
+      const centerX = (bounds.minX + bounds.maxX) / 2;
+
+      const enhancedPoints = [];
+
+      for (let i = 0; i < points.length; i++) {
+        const current = points[i];
+
+        // Calculate relative position
+        const relativeY = (current.y - bounds.minY) / nailHeight;
+        const distanceFromCenter = Math.abs(current.x - centerX) / (nailWidth / 2);
+
+        // Identify bottom curved areas (bottom 40% of nail, especially near center)
+        const isBottomCurve = relativeY < 0.4 && distanceFromCenter < 0.8;
+
+        // Calculate centroid for expansion direction
+        const centroid = {
+          x: points.reduce((sum, p) => sum + (p?.x || 0), 0) / points.length,
+          y: points.reduce((sum, p) => sum + (p?.y || 0), 0) / points.length
+        };
+
+        const dirX = current.x - centroid.x;
+        const dirY = current.y - centroid.y;
+        const distance = Math.sqrt(dirX * dirX + dirY * dirY);
+
+        if (distance > 0) {
+          const normalizedX = dirX / distance;
+          const normalizedY = dirY / distance;
+
+          // Enhanced expansion for bottom curved areas
+          let pointExpansion = expansionAmount;
+
+          if (isBottomCurve) {
+            // Use a curved expansion formula for natural bottom rounding
+            const curveFactor = 1 - Math.pow(distanceFromCenter, 2); // More expansion near center
+            const bottomFactor = 1 - Math.pow(relativeY / 0.4, 1.5); // More expansion at bottom
+            pointExpansion *= (1 + curveFactor * bottomFactor * 0.6);
+          }
+
+          enhancedPoints.push({
+            x: current.x + normalizedX * pointExpansion,
+            y: current.y + normalizedY * pointExpansion
+          });
+        } else {
+          enhancedPoints.push(current);
+        }
+      }
+
+      return enhancedPoints;
+    } catch (error) {
+      console.log('Error in bottom curvature enhancement:', error);
+      return points;
+    }
+  },
+
   // Method 9: Enhanced dilation with edge point insertion
   dilatePolygonEnhanced: (points, dilationRadius = 4) => {
     if (!points || points.length < 3) return points;
@@ -387,8 +455,91 @@ const NailPolygonUtils = {
     }
   },
 
-  // Method 10: Size-adaptive expansion for different nail sizes
-  // Method 10: Intelligent adaptive expansion with hand analysis
+  // Method 10: Enhanced nail curvature for natural rounded edges
+  enhancedNailCurvature: (points, expansionAmount = 8) => {
+    if (!points || points.length < 3) return points;
+
+    try {
+      const centroid = {
+        x: points.reduce((sum, p) => sum + (p?.x || 0), 0) / points.length,
+        y: points.reduce((sum, p) => sum + (p?.y || 0), 0) / points.length
+      };
+
+      // Detect nail orientation and shape
+      const bounds = {
+        minX: Math.min(...points.map(p => p?.x || 0)),
+        minY: Math.min(...points.map(p => p?.y || 0)),
+        maxX: Math.max(...points.map(p => p?.x || 0)),
+        maxY: Math.max(...points.map(p => p?.y || 0))
+      };
+
+      const nailWidth = bounds.maxX - bounds.minX;
+      const nailHeight = bounds.maxY - bounds.minY;
+
+      // Enhanced expansion with curvature analysis
+      const enhancedPoints = [];
+
+      for (let i = 0; i < points.length; i++) {
+        const current = points[i];
+        const prev = points[(i - 1 + points.length) % points.length];
+        const next = points[(i + 1) % points.length];
+
+        // Calculate position relative to nail center
+        const relativeX = (current.x - bounds.minX) / nailWidth;
+        const relativeY = (current.y - bounds.minY) / nailHeight;
+
+        // Detect if this is likely the bottom (cuticle) area
+        const isBottomArea = relativeY < 0.3; // Bottom 30% of nail
+        const isSideArea = relativeX < 0.2 || relativeX > 0.8; // Side 20% areas
+
+        // Calculate curvature at this point
+        const curvature = NailPolygonUtils.calculateLocalCurvature(prev, current, next);
+        const isCurvedArea = Math.abs(curvature) > 0.3;
+
+        // Direction from centroid
+        const dirX = current.x - centroid.x;
+        const dirY = current.y - centroid.y;
+        const distance = Math.sqrt(dirX * dirX + dirY * dirY);
+
+        if (distance > 0) {
+          const normalizedX = dirX / distance;
+          const normalizedY = dirY / distance;
+
+          // Enhanced expansion for curved bottom areas
+          let pointExpansion = expansionAmount;
+
+          if (isBottomArea && isCurvedArea) {
+            // Increase expansion for curved bottom areas to ensure smooth coverage
+            pointExpansion *= 1.4;
+          } else if (isBottomArea) {
+            // Moderate increase for general bottom area
+            pointExpansion *= 1.2;
+          } else if (isSideArea && isCurvedArea) {
+            // Moderate increase for curved side areas
+            pointExpansion *= 1.1;
+          }
+
+          // Apply smooth position interpolation
+          const smoothX = current.x * 0.8 + (prev.x + next.x) * 0.1;
+          const smoothY = current.y * 0.8 + (prev.y + next.y) * 0.1;
+
+          enhancedPoints.push({
+            x: smoothX + normalizedX * pointExpansion,
+            y: smoothY + normalizedY * pointExpansion
+          });
+        } else {
+          enhancedPoints.push(current);
+        }
+      }
+
+      return enhancedPoints;
+    } catch (error) {
+      console.log('Error in enhanced nail curvature:', error);
+      return NailPolygonUtils.expandPolygonSimple(points, expansionAmount);
+    }
+  },
+
+  // Method 10b: Intelligent adaptive expansion with hand analysis
   intelligentAdaptiveExpansion: (points, allNailPolygons = [], nailIndex = 0, imageDimensions = {}, baseExpansionAmount = 6) => {
     if (!points || points.length < 3) return points;
 

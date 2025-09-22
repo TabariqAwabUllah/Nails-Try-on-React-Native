@@ -517,7 +517,7 @@ const Cam = ({showCamera=false}) => {
                     const nailArea = nailWidth * nailHeight;
                     const aspectRatio = nailWidth / nailHeight;
 
-                    // Calculate adaptive expansion based on nail size
+                    // Calculate adaptive expansion based on nail size \ pixel expansion
                     // Using inverse relationship for better small nail coverage
                     const inverseExpansion = 15 - (nailArea / 500);
                     const sizeBasedExpansion = Math.max(5, Math.min(15, inverseExpansion));
