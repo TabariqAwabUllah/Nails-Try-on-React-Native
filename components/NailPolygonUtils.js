@@ -1386,6 +1386,314 @@ const NailPolygonUtils = {
     } catch (error) {
       return 0;
     }
+  },
+
+  // =================== ENHANCED BOUNDARY VALIDATION ===================
+
+  // Method 32: Intelligent expansion with boundary validation
+  intelligentExpansionWithValidation: (points, baseExpansion = 6, nailIndex = 0, allNails = []) => {
+    if (!points || points.length < 3) return points;
+
+    try {
+      // Step 1: Calculate initial expansion
+      let expandedPoints = NailPolygonUtils.expandPolygonSimple(points, baseExpansion);
+
+      // Step 2: Check for potential overlaps with nearby nails
+      if (allNails.length > 1) {
+        expandedPoints = NailPolygonUtils.validateNailSeparation(expandedPoints, points, allNails, nailIndex);
+      }
+
+      // Step 3: Ensure complete coverage while preventing overshooting
+      expandedPoints = NailPolygonUtils.validateCoverage(expandedPoints, points);
+
+      // Step 4: Apply edge refinement
+      expandedPoints = NailPolygonUtils.refineEdgeQuality(expandedPoints, points);
+
+      return expandedPoints;
+    } catch (error) {
+      console.log('Error in intelligent expansion with validation:', error);
+      return NailPolygonUtils.expandPolygonSimple(points, baseExpansion * 0.8);
+    }
+  },
+
+  // Method 33: Validate nail separation to prevent overlap
+  validateNailSeparation: (expandedPoints, originalPoints, allNails, currentNailIndex) => {
+    try {
+      const validatedPoints = [];
+      const currentCentroid = {
+        x: originalPoints.reduce((sum, p) => sum + p.x, 0) / originalPoints.length,
+        y: originalPoints.reduce((sum, p) => sum + p.y, 0) / originalPoints.length
+      };
+
+      for (let i = 0; i < expandedPoints.length; i++) {
+        const point = expandedPoints[i];
+        let isValid = true;
+        let minDistanceToOtherNail = Infinity;
+
+        // Check distance to other nails
+        for (let nailIdx = 0; nailIdx < allNails.length; nailIdx++) {
+          if (nailIdx === currentNailIndex) continue;
+
+          const otherNail = allNails[nailIdx];
+          if (!otherNail || otherNail.length < 3) continue;
+
+          // Calculate distance to other nail boundary
+          const distanceToNail = NailPolygonUtils.pointToPolygonDistance(point, otherNail);
+          minDistanceToOtherNail = Math.min(minDistanceToOtherNail, distanceToNail);
+
+          // If too close to another nail, mark as invalid
+          if (distanceToNail < 8) {
+            isValid = false;
+            break;
+          }
+        }
+
+        if (isValid) {
+          validatedPoints.push(point);
+        } else {
+          // Pull back the point towards original nail
+          const originalPoint = originalPoints[i];
+          const directionX = (originalPoint.x - currentCentroid.x);
+          const directionY = (originalPoint.y - currentCentroid.y);
+          const distance = Math.sqrt(directionX * directionX + directionY * directionY);
+
+          if (distance > 0) {
+            const normalizedX = directionX / distance;
+            const normalizedY = directionY / distance;
+
+            // Conservative expansion when near other nails
+            const safeExpansion = Math.min(3, minDistanceToOtherNail * 0.4);
+
+            validatedPoints.push({
+              x: originalPoint.x + normalizedX * safeExpansion,
+              y: originalPoint.y + normalizedY * safeExpansion
+            });
+          } else {
+            validatedPoints.push(originalPoint);
+          }
+        }
+      }
+
+      return validatedPoints;
+    } catch (error) {
+      console.log('Error validating nail separation:', error);
+      return expandedPoints;
+    }
+  },
+
+  // Method 34: Calculate distance from point to polygon
+  pointToPolygonDistance: (point, polygon) => {
+    try {
+      let minDistance = Infinity;
+
+      for (let i = 0; i < polygon.length; i++) {
+        const p1 = polygon[i];
+        const p2 = polygon[(i + 1) % polygon.length];
+
+        // Distance from point to line segment
+        const distance = NailPolygonUtils.pointToLineDistance(point, p1, p2);
+        minDistance = Math.min(minDistance, distance);
+      }
+
+      return minDistance;
+    } catch (error) {
+      return Infinity;
+    }
+  },
+
+  // Method 35: Calculate distance from point to line segment
+  pointToLineDistance: (point, lineStart, lineEnd) => {
+    try {
+      const A = point.x - lineStart.x;
+      const B = point.y - lineStart.y;
+      const C = lineEnd.x - lineStart.x;
+      const D = lineEnd.y - lineStart.y;
+
+      const dot = A * C + B * D;
+      const lenSq = C * C + D * D;
+
+      if (lenSq === 0) {
+        // Line start and end are the same point
+        return Math.sqrt(A * A + B * B);
+      }
+
+      let param = dot / lenSq;
+
+      let xx, yy;
+
+      if (param < 0) {
+        xx = lineStart.x;
+        yy = lineStart.y;
+      } else if (param > 1) {
+        xx = lineEnd.x;
+        yy = lineEnd.y;
+      } else {
+        xx = lineStart.x + param * C;
+        yy = lineStart.y + param * D;
+      }
+
+      const dx = point.x - xx;
+      const dy = point.y - yy;
+      return Math.sqrt(dx * dx + dy * dy);
+    } catch (error) {
+      return Infinity;
+    }
+  },
+
+  // Method 36: Validate coverage to ensure complete nail coverage
+  validateCoverage: (expandedPoints, originalPoints) => {
+    try {
+      // Calculate areas
+      const originalArea = NailPolygonUtils.calculatePolygonArea(originalPoints);
+      const expandedArea = NailPolygonUtils.calculatePolygonArea(expandedPoints);
+
+      // Check if expansion is sufficient
+      const expansionRatio = expandedArea / originalArea;
+
+      // If expansion is too small, we might have undercoverage
+      if (expansionRatio < 1.4) {
+        console.log('Detected potential undercoverage, adjusting expansion');
+
+        const centroid = {
+          x: originalPoints.reduce((sum, p) => sum + p.x, 0) / originalPoints.length,
+          y: originalPoints.reduce((sum, p) => sum + p.y, 0) / originalPoints.length
+        };
+
+        // Increase expansion for undercovered areas
+        const adjustedPoints = expandedPoints.map((point, index) => {
+          const original = originalPoints[index];
+          const dirX = original.x - centroid.x;
+          const dirY = original.y - centroid.y;
+          const distance = Math.sqrt(dirX * dirX + dirY * dirY);
+
+          if (distance > 0) {
+            const normalizedX = dirX / distance;
+            const normalizedY = dirY / distance;
+
+            // Add additional expansion for coverage
+            const additionalExpansion = 2;
+
+            return {
+              x: point.x + normalizedX * additionalExpansion,
+              y: point.y + normalizedY * additionalExpansion
+            };
+          }
+          return point;
+        });
+
+        return adjustedPoints;
+      }
+
+      // If expansion is too large, we might have overshoot
+      if (expansionRatio > 3.0) {
+        console.log('Detected potential overshoot, reducing expansion');
+
+        const centroid = {
+          x: originalPoints.reduce((sum, p) => sum + p.x, 0) / originalPoints.length,
+          y: originalPoints.reduce((sum, p) => sum + p.y, 0) / originalPoints.length
+        };
+
+        const scaleFactor = Math.sqrt(2.5 / expansionRatio);
+
+        return expandedPoints.map(point => ({
+          x: centroid.x + (point.x - centroid.x) * scaleFactor,
+          y: centroid.y + (point.y - centroid.y) * scaleFactor
+        }));
+      }
+
+      return expandedPoints;
+    } catch (error) {
+      console.log('Error validating coverage:', error);
+      return expandedPoints;
+    }
+  },
+
+  // Method 37: Refine edge quality for natural appearance
+  refineEdgeQuality: (expandedPoints, originalPoints) => {
+    try {
+      // Calculate original nail characteristics
+      const originalBounds = {
+        minX: Math.min(...originalPoints.map(p => p.x)),
+        minY: Math.min(...originalPoints.map(p => p.y)),
+        maxX: Math.max(...originalPoints.map(p => p.x)),
+        maxY: Math.max(...originalPoints.map(p => p.y))
+      };
+
+      const nailArea = (originalBounds.maxX - originalBounds.minX) * (originalBounds.maxY - originalBounds.minY);
+
+      // Adaptive smoothing based on nail size
+      let smoothingPasses = 1;
+      let dilationAmount = 2;
+
+      if (nailArea < 1000) {
+        // Small nails - minimal processing to preserve detail
+        smoothingPasses = 1;
+        dilationAmount = 1;
+      } else if (nailArea > 3000) {
+        // Large nails - more aggressive smoothing
+        smoothingPasses = 2;
+        dilationAmount = 3;
+      }
+
+      // Apply refinement
+      let refinedPoints = NailPolygonUtils.smoothPolygonEdges(expandedPoints, smoothingPasses);
+      refinedPoints = NailPolygonUtils.dilatePolygonEnhanced(refinedPoints, dilationAmount);
+
+      return refinedPoints;
+    } catch (error) {
+      console.log('Error refining edge quality:', error);
+      return expandedPoints;
+    }
+  },
+
+  // Method 38: Main enhanced processing pipeline
+  enhancedNailProcessing: (points, nailIndex = 0, allNails = []) => {
+    if (!points || points.length < 3) return points;
+
+    try {
+      // Calculate nail characteristics for adaptive parameters
+      const bounds = {
+        minX: Math.min(...points.map(p => p.x)),
+        minY: Math.min(...points.map(p => p.y)),
+        maxX: Math.max(...points.map(p => p.x)),
+        maxY: Math.max(...points.map(p => p.y))
+      };
+
+      const nailWidth = bounds.maxX - bounds.minX;
+      const nailHeight = bounds.maxY - bounds.minY;
+      const nailArea = nailWidth * nailHeight;
+      const aspectRatio = nailWidth / nailHeight;
+
+      // Enhanced adaptive expansion calculation
+      let baseExpansion;
+      if (nailArea < 800) baseExpansion = 8;       // Very small nails
+      else if (nailArea < 1500) baseExpansion = 6; // Small nails
+      else if (nailArea < 2500) baseExpansion = 5; // Medium nails
+      else if (nailArea < 4000) baseExpansion = 4; // Large nails
+      else baseExpansion = 3;                      // Very large nails
+
+      // Aspect ratio adjustment
+      if (aspectRatio > 2 || aspectRatio < 0.5) {
+        baseExpansion *= 1.2; // Unusual shapes need more coverage
+      }
+
+      console.log(`Enhanced processing nail ${nailIndex}: area=${nailArea.toFixed(0)}, baseExpansion=${baseExpansion.toFixed(1)}`);
+
+      // Apply intelligent expansion with validation
+      let processedPoints = NailPolygonUtils.intelligentExpansionWithValidation(
+        points,
+        baseExpansion,
+        nailIndex,
+        allNails
+      );
+
+      return processedPoints;
+
+    } catch (error) {
+      console.log(`Error in enhanced nail processing for nail ${nailIndex}:`, error);
+      // Fallback to conservative simple expansion
+      return NailPolygonUtils.expandPolygonSimple(points, 4);
+    }
   }
 };
 
