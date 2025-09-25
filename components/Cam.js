@@ -43,6 +43,7 @@ const Cam = ({showCamera=false}) => {
   const [showDirections, setShowDirections] = useState(false);
   const [apiCall, setApiCall] = useState(false);
   const [capturedNailData, setCapturedNailData] = useState([]);
+  const [nailWait, setNailWait] = useState(false);
       
   const colors = [
       { name: 'Red', color: '#800020' },
@@ -53,7 +54,7 @@ const Cam = ({showCamera=false}) => {
       { name: 'Black', color: '#000000' },
       // { name: 'White', color: '#FFFFFF' },
       // { name: 'Gold', color: '#FFBf00' }
-      {name: 'Nude', color: '#D2B48C'},
+      {name: 'Skin', color: '#D2B48C'},
       // {name: 'Shiny', color: '#aebbff'},
   ];
 
@@ -339,7 +340,7 @@ const Cam = ({showCamera=false}) => {
   const designNailsXY = async (imagePath) => {
     try {
 
-
+        setNailWait(true);
         const roboflowResponse = await imageDesignAPI(imagePath);
 
         if (!roboflowResponse?.predictions?.length) {
@@ -390,11 +391,13 @@ const Cam = ({showCamera=false}) => {
         // console.log("🎯 FINAL STEP: Setting design mode to true");
         // console.log("   extractedNailImages to be set:", processedNails?.length || 0);
         setDesignMode(true);
+        setNailWait(false);
         // console.log("✅ designNailsXY completed successfully");
         
     } catch (error) {
 // console.log("Design processing error:", error);
         setDesignMode(false);
+        setNailWait(false);
         setProcessedDesigns([]);
         alert("Error processing design. Please try again.");
     }
@@ -742,13 +745,20 @@ const Cam = ({showCamera=false}) => {
                 ))}
                 
                 <TouchableOpacity onPress={()=>{
-// console.log("🖱️ DESIGN PIC BUTTON CLICKED!");
-                    // console.log("   designNailImage:", designNailImage);
                     designNailsXY(designNailImage);
                 }} style={[styles.colorButton, {backgroundColor: designMode ? '#4CAF50' : '#660036ff'}]}>
-                    <Text style={{color: 'white', fontSize: 10}}>
+
+                  {
+                    nailWait ? (
+                      <ActivityIndicator size="small" color="white" />
+                    ):(
+                      <Text style={{color: 'white', fontSize: 10}}>
                         {designMode ? 'Change Design' : 'Design Pic'}
-                    </Text>
+                      </Text>
+
+                    )
+                  }
+                    
                 </TouchableOpacity>
                 
                 {(capturedNailDirections.length > 0 || designedNailDirections.length > 0) && (
