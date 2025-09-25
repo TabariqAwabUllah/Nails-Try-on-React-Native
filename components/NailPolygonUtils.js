@@ -33,7 +33,7 @@ const NailPolygonUtils = {
         };
       });
     } catch (error) {
-      console.log('Error in shrinkPolygonUniform:', error);
+      //console.log('Error in shrinkPolygonUniform:', error);
       return points;
     }
   },
@@ -60,7 +60,7 @@ const NailPolygonUtils = {
       
       return NailPolygonUtils.shrinkPolygonUniform(points, shrinkAmount);
     } catch (error) {
-      console.log('Error in shrinkPolygonAdaptive:', error);
+      //console.log('Error in shrinkPolygonAdaptive:', error);
       return points;
     }
   },
@@ -100,7 +100,7 @@ const NailPolygonUtils = {
 
       return path;
     } catch (error) {
-      console.log('Error creating smooth nail path:', error);
+      //console.log('Error creating smooth nail path:', error);
       return '';
     }
   },
@@ -160,7 +160,7 @@ const NailPolygonUtils = {
       path += ' Z';
       return path;
     } catch (error) {
-      console.log('Error creating enhanced smooth path:', error);
+      //console.log('Error creating enhanced smooth path:', error);
       return NailPolygonUtils.createSmoothNailPath(points, shrinkAmount);
     }
   },
@@ -255,7 +255,7 @@ const NailPolygonUtils = {
 
       return enhancedPoints;
     } catch (error) {
-      console.log('Error in distance-based enhancement:', error);
+      //console.log('Error in distance-based enhancement:', error);
       return points;
     }
   },
@@ -309,7 +309,7 @@ const NailPolygonUtils = {
 
       return expandedPoints;
     } catch (error) {
-      console.log('Error in simple polygon expansion:', error);
+      //console.log('Error in simple polygon expansion:', error);
       return points;
     }
   },
@@ -377,7 +377,7 @@ const NailPolygonUtils = {
 
       return enhancedPoints;
     } catch (error) {
-      console.log('Error in bottom curvature enhancement:', error);
+      //console.log('Error in bottom curvature enhancement:', error);
       return points;
     }
   },
@@ -450,7 +450,7 @@ const NailPolygonUtils = {
 
       return dilatedPoints;
     } catch (error) {
-      console.log('Error in enhanced polygon dilation:', error);
+      //console.log('Error in enhanced polygon dilation:', error);
       return points;
     }
   },
@@ -534,7 +534,7 @@ const NailPolygonUtils = {
 
       return enhancedPoints;
     } catch (error) {
-      console.log('Error in enhanced nail curvature:', error);
+      //console.log('Error in enhanced nail curvature:', error);
       return NailPolygonUtils.expandPolygonSimple(points, expansionAmount);
     }
   },
@@ -621,7 +621,7 @@ const NailPolygonUtils = {
 
       return expandedPoints;
     } catch (error) {
-      console.log('Error in intelligent adaptive expansion:', error);
+      //console.log('Error in intelligent adaptive expansion:', error);
       return points;
     }
   },
@@ -674,7 +674,7 @@ const NailPolygonUtils = {
         aspectRatio
       };
     } catch (error) {
-      console.log('Error analyzing hand position:', error);
+      //console.log('Error analyzing hand position:', error);
       return { isAngledHand: false, nailDensity: 0.5, handOrientation: 'flat' };
     }
   },
@@ -714,7 +714,7 @@ const NailPolygonUtils = {
 
       return Math.max(0.3, riskScore); // Never go below 30% expansion
     } catch (error) {
-      console.log('Error detecting boundary risk:', error);
+      //console.log('Error detecting boundary risk:', error);
       return 0.8; // Conservative fallback
     }
   },
@@ -728,7 +728,7 @@ const NailPolygonUtils = {
       // In React Native, we'd need to use a library like react-native-image-manipulator
       // or process image data through native modules
 
-      console.log('Starting color-based boundary detection for nail polygon');
+      //console.log('Starting color-based boundary detection for nail polygon');
 
       // Sample colors around polygon edges
       const edgeSamples = NailPolygonUtils.sampleColorsAroundEdges(imageUri, polygon, sampleRadius);
@@ -750,7 +750,7 @@ const NailPolygonUtils = {
         edgeSamples: edgeSamples
       };
     } catch (error) {
-      console.log('Error in color-based boundary detection:', error);
+      //console.log('Error in color-based boundary detection:', error);
       return { boundaries: null, confidence: 0, method: 'color-analysis-error' };
     }
   },
@@ -802,7 +802,7 @@ const NailPolygonUtils = {
 
       return samples;
     } catch (error) {
-      console.log('Error sampling colors around edges:', error);
+      //console.log('Error sampling colors around edges:', error);
       return [];
     }
   },
@@ -836,7 +836,7 @@ const NailPolygonUtils = {
 
       return boundaries;
     } catch (error) {
-      console.log('Error analyzing color gradients:', error);
+      //console.log('Error analyzing color gradients:', error);
       return [];
     }
   },
@@ -871,7 +871,7 @@ const NailPolygonUtils = {
   // Method 18: Edge gradient analysis for nail boundaries
   detectNailBoundariesFromGradients: (imageUri, polygon) => {
     try {
-      console.log('Starting gradient-based boundary detection');
+      //console.log('Starting gradient-based boundary detection');
 
       // Conceptual implementation - would need actual image gradient calculation
       const gradientSamples = NailPolygonUtils.calculateImageGradients(imageUri, polygon);
@@ -893,7 +893,7 @@ const NailPolygonUtils = {
         gradientSamples: gradientSamples
       };
     } catch (error) {
-      console.log('Error in gradient-based boundary detection:', error);
+      //console.log('Error in gradient-based boundary detection:', error);
       return { boundaries: null, confidence: 0, method: 'gradient-analysis-error' };
     }
   },
@@ -925,7 +925,7 @@ const NailPolygonUtils = {
 
       return gradients;
     } catch (error) {
-      console.log('Error calculating image gradients:', error);
+      //console.log('Error calculating image gradients:', error);
       return [];
     }
   },
@@ -966,7 +966,7 @@ const NailPolygonUtils = {
 
       return strongEdges;
     } catch (error) {
-      console.log('Error finding strong edges:', error);
+      //console.log('Error finding strong edges:', error);
       return [];
     }
   },
@@ -998,7 +998,7 @@ const NailPolygonUtils = {
   // Method 23: Main hybrid nail boundary detection and expansion
   hybridNailExpansion: (points, allNailPolygons = [], nailIndex = 0, imageDimensions = {}, imageUri = null, baseExpansionAmount = 6) => {
     try {
-      console.log(`Starting hybrid expansion for nail ${nailIndex}`);
+      //console.log(`Starting hybrid expansion for nail ${nailIndex}`);
 
       // Phase 1: Try image analysis first
       let imageAnalysisResult = null;
@@ -1014,7 +1014,7 @@ const NailPolygonUtils = {
         // Combine results and calculate overall confidence
         imageAnalysisResult = NailPolygonUtils.combineImageAnalysisResults(colorAnalysis, gradientAnalysis);
 
-        console.log(`Image analysis confidence: ${(imageAnalysisResult.confidence * 100).toFixed(1)}%`);
+        //console.log(`Image analysis confidence: ${(imageAnalysisResult.confidence * 100).toFixed(1)}%`);
 
         // Use image-guided expansion if confidence is high enough
         if (imageAnalysisResult.confidence > 0.6) {
@@ -1023,13 +1023,13 @@ const NailPolygonUtils = {
             imageAnalysisResult,
             baseExpansionAmount
           );
-          console.log(`Using image-guided expansion for nail ${nailIndex}`);
+          //console.log(`Using image-guided expansion for nail ${nailIndex}`);
         }
       }
 
       // Phase 2: Fall back to intelligent geometric expansion
       if (!finalExpansion) {
-        console.log(`Falling back to geometric expansion for nail ${nailIndex}`);
+        //console.log(`Falling back to geometric expansion for nail ${nailIndex}`);
         finalExpansion = NailPolygonUtils.intelligentAdaptiveExpansion(
           points,
           allNailPolygons,
@@ -1054,7 +1054,7 @@ const NailPolygonUtils = {
       };
 
     } catch (error) {
-      console.log('Error in hybrid nail expansion:', error);
+      //console.log('Error in hybrid nail expansion:', error);
       // Ultimate fallback - conservative expansion
       return {
         expandedPoints: NailPolygonUtils.expandPolygonSimple(points, baseExpansionAmount * 0.5),
@@ -1093,7 +1093,7 @@ const NailPolygonUtils = {
         gradientAnalysis: gradientAnalysis
       };
     } catch (error) {
-      console.log('Error combining image analysis results:', error);
+      //console.log('Error combining image analysis results:', error);
       return {
         confidence: 0,
         boundaries: [],
@@ -1163,7 +1163,7 @@ const NailPolygonUtils = {
 
       return expandedPoints;
     } catch (error) {
-      console.log('Error in image-guided expansion:', error);
+      //console.log('Error in image-guided expansion:', error);
       return NailPolygonUtils.expandPolygonSimple(points, baseExpansionAmount);
     }
   },
@@ -1180,7 +1180,7 @@ const NailPolygonUtils = {
       const maxExpansionRatio = imageAnalysis?.confidence > 0.7 ? 3.0 : 2.5;
 
       if (expansionRatio > maxExpansionRatio) {
-        console.log(`Scaling back excessive expansion: ${expansionRatio.toFixed(2)} -> ${maxExpansionRatio}`);
+        //console.log(`Scaling back excessive expansion: ${expansionRatio.toFixed(2)} -> ${maxExpansionRatio}`);
 
         const scaleFactor = Math.sqrt(maxExpansionRatio / expansionRatio);
 
@@ -1197,7 +1197,7 @@ const NailPolygonUtils = {
 
       return expandedPoints;
     } catch (error) {
-      console.log('Error applying safety constraints:', error);
+      //console.log('Error applying safety constraints:', error);
       return expandedPoints;
     }
   },
@@ -1305,7 +1305,7 @@ const NailPolygonUtils = {
       return refinedPoints;
 
     } catch (error) {
-      console.log('Error in precision nail expansion:', error);
+      //console.log('Error in precision nail expansion:', error);
       return NailPolygonUtils.expandPolygonSimple(points, 6);
     }
   },
@@ -1349,7 +1349,7 @@ const NailPolygonUtils = {
       };
 
     } catch (error) {
-      console.log('Error analyzing nail shape:', error);
+      //console.log('Error analyzing nail shape:', error);
       return { isRegular: true, hasSharpEdges: false, avgDistance: 50, distanceVariance: 0, sharpEdgeCount: 0 };
     }
   },
@@ -1411,7 +1411,7 @@ const NailPolygonUtils = {
 
       return expandedPoints;
     } catch (error) {
-      console.log('Error in intelligent expansion with validation:', error);
+      //console.log('Error in intelligent expansion with validation:', error);
       return NailPolygonUtils.expandPolygonSimple(points, baseExpansion * 0.8);
     }
   },
@@ -1476,7 +1476,7 @@ const NailPolygonUtils = {
 
       return validatedPoints;
     } catch (error) {
-      console.log('Error validating nail separation:', error);
+      //console.log('Error validating nail separation:', error);
       return expandedPoints;
     }
   },
@@ -1552,7 +1552,7 @@ const NailPolygonUtils = {
 
       // If expansion is too small, we might have undercoverage
       if (expansionRatio < 1.4) {
-        console.log('Detected potential undercoverage, adjusting expansion');
+        //console.log('Detected potential undercoverage, adjusting expansion');
 
         const centroid = {
           x: originalPoints.reduce((sum, p) => sum + p.x, 0) / originalPoints.length,
@@ -1586,7 +1586,7 @@ const NailPolygonUtils = {
 
       // If expansion is too large, we might have overshoot
       if (expansionRatio > 3.0) {
-        console.log('Detected potential overshoot, reducing expansion');
+        //console.log('Detected potential overshoot, reducing expansion');
 
         const centroid = {
           x: originalPoints.reduce((sum, p) => sum + p.x, 0) / originalPoints.length,
@@ -1603,7 +1603,7 @@ const NailPolygonUtils = {
 
       return expandedPoints;
     } catch (error) {
-      console.log('Error validating coverage:', error);
+      //console.log('Error validating coverage:', error);
       return expandedPoints;
     }
   },
@@ -1641,7 +1641,7 @@ const NailPolygonUtils = {
 
       return refinedPoints;
     } catch (error) {
-      console.log('Error refining edge quality:', error);
+      //console.log('Error refining edge quality:', error);
       return expandedPoints;
     }
   },
@@ -1677,7 +1677,7 @@ const NailPolygonUtils = {
         baseExpansion *= 1.2; // Unusual shapes need more coverage
       }
 
-      console.log(`Enhanced processing nail ${nailIndex}: area=${nailArea.toFixed(0)}, baseExpansion=${baseExpansion.toFixed(1)}`);
+      //console.log(`Enhanced processing nail ${nailIndex}: area=${nailArea.toFixed(0)}, baseExpansion=${baseExpansion.toFixed(1)}`);
 
       // Apply intelligent expansion with validation
       let processedPoints = NailPolygonUtils.intelligentExpansionWithValidation(
@@ -1690,7 +1690,7 @@ const NailPolygonUtils = {
       return processedPoints;
 
     } catch (error) {
-      console.log(`Error in enhanced nail processing for nail ${nailIndex}:`, error);
+      //console.log(`Error in enhanced nail processing for nail ${nailIndex}:`, error);
       // Fallback to conservative simple expansion
       return NailPolygonUtils.expandPolygonSimple(points, 4);
     }

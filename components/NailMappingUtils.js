@@ -256,7 +256,7 @@ export const calculateNailScale = (designedNailBounds, capturedNailBounds) => {
     // Use the larger scale to ensure complete coverage
     const scale = Math.max(scaleX, scaleY);
     
-    console.log(`Scale calculation: ${scaleX.toFixed(2)} x ${scaleY.toFixed(2)} → ${scale.toFixed(2)}`);
+    // console.log(`Scale calculation: ${scaleX.toFixed(2)} x ${scaleY.toFixed(2)} → ${scale.toFixed(2)}`);
     
     return { scaleX, scaleY, scale };
   } catch (error) {
@@ -290,7 +290,7 @@ export const transformDesignedNail = (designedNailPolygon, capturedNailPolygon) 
       return { x: translatedX, y: translatedY };
     });
     
-    console.log(`Transformed designed nail: scale=${scale.toFixed(2)}`);
+    // console.log(`Transformed designed nail: scale=${scale.toFixed(2)}`);
     return transformedPolygon;
   } catch (error) {
     console.log("Error transforming designed nail:", error);
@@ -302,11 +302,11 @@ export const transformDesignedNail = (designedNailPolygon, capturedNailPolygon) 
 export const createDirectNailMappings = (designedNails, capturedNails, designImagePath, designImageDimensions) => {
   try {
     if (!designedNails || !capturedNails || !designImagePath) {
-      console.log('Invalid input for direct nail mapping');
+      // console.log('Invalid input for direct nail mapping');
       return [];
     }
 
-    console.log(`Creating direct mappings: ${designedNails.length} designed → ${capturedNails.length} captured`);
+    // console.log(`Creating direct mappings: ${designedNails.length} designed → ${capturedNails.length} captured`);
     
     const mappings = [];
     const maxMappings = Math.min(designedNails.length, capturedNails.length);
@@ -340,7 +340,7 @@ export const createDirectNailMappings = (designedNails, capturedNails, designIma
       });
     }
     
-    console.log(`Created ${mappings.length} direct nail mappings`);
+    // console.log(`Created ${mappings.length} direct nail mappings`);
     return mappings;
   } catch (error) {
     console.log('Error creating direct nail mappings:', error);
@@ -725,14 +725,14 @@ export const detectNailDirection = (nailPolygon, nailIndex = 0, nailType = 'unkn
 
     const confidenceColor = highestConfidence > 0.7 ? '🟢' : highestConfidence > 0.4 ? '🟡' : '🔴';
     
-    console.log(`\n🔍 NAIL DIRECTION ANALYSIS - ${nailType.toUpperCase()} NAIL ${nailIndex}`);
-    console.log(`${directionEmoji[finalResult.direction]} Direction: ${finalResult.direction} ${confidenceColor} (${(highestConfidence * 100).toFixed(1)}% confidence)`);
-    console.log(`📐 Angle: ${finalResult.angle.toFixed(1)}° (${finalResult.distanceFromCardinal.toFixed(1)}° from cardinal)`);
-    console.log(`🏆 Best Method: ${finalResult.method}`);
-    console.log(`📊 All Methods:`);
-    console.log(`   • Longest Edge: ${methods.longestEdge.direction} (${(methods.longestEdge.confidence * 100).toFixed(1)}%)`);
-    console.log(`   • PCA: ${methods.pca.direction} (${(methods.pca.confidence * 100).toFixed(1)}%)`);
-    console.log(`   • Oriented Box: ${methods.obb.direction} (${(methods.obb.confidence * 100).toFixed(1)}%)`);
+    // console.log(`\n🔍 NAIL DIRECTION ANALYSIS - ${nailType.toUpperCase()} NAIL ${nailIndex}`);
+    // console.log(`${directionEmoji[finalResult.direction]} Direction: ${finalResult.direction} ${confidenceColor} (${(highestConfidence * 100).toFixed(1)}% confidence)`);
+    // console.log(`📐 Angle: ${finalResult.angle.toFixed(1)}° (${finalResult.distanceFromCardinal.toFixed(1)}° from cardinal)`);
+    // console.log(`🏆 Best Method: ${finalResult.method}`);
+    // console.log(`📊 All Methods:`);
+    // console.log(`   • Longest Edge: ${methods.longestEdge.direction} (${(methods.longestEdge.confidence * 100).toFixed(1)}%)`);
+    // console.log(`   • PCA: ${methods.pca.direction} (${(methods.pca.confidence * 100).toFixed(1)}%)`);
+    // console.log(`   • Oriented Box: ${methods.obb.direction} (${(methods.obb.confidence * 100).toFixed(1)}%)`);
 
     // Detect base and tip
     let baseAndTip = { base: null, tip: null, confidence: 0 };
@@ -744,12 +744,12 @@ export const detectNailDirection = (nailPolygon, nailIndex = 0, nailType = 'unkn
       baseAndTip = nailDirectionUtils.detectNailBaseAndTip(nailPolygon, bestPrimaryVector);
       
       if (baseAndTip.confidence > 0.3) {
-        console.log(`🔍 BASE & TIP ANALYSIS:`);
-        console.log(`   🟫 Base: ${baseAndTip.base.position} end (width: ${baseAndTip.base.width.toFixed(1)}) - narrower`);
-        console.log(`   🔸 Tip: ${baseAndTip.tip.position} end (width: ${baseAndTip.tip.width.toFixed(1)}) - wider`);
-        console.log(`   📏 Width Ratio: ${baseAndTip.widthRatio.toFixed(2)}:1 (${(baseAndTip.confidence * 100).toFixed(1)}% confidence)`);
+        // console.log(`🔍 BASE & TIP ANALYSIS:`);
+        // console.log(`   🟫 Base: ${baseAndTip.base.position} end (width: ${baseAndTip.base.width.toFixed(1)}) - narrower`);
+        // console.log(`   🔸 Tip: ${baseAndTip.tip.position} end (width: ${baseAndTip.tip.width.toFixed(1)}) - wider`);
+        // console.log(`   📏 Width Ratio: ${baseAndTip.widthRatio.toFixed(2)}:1 (${(baseAndTip.confidence * 100).toFixed(1)}% confidence)`);
       } else {
-        console.log(`🔍 BASE & TIP: Unable to determine (low confidence: ${(baseAndTip.confidence * 100).toFixed(1)}%)`);
+        // console.log(`🔍 BASE & TIP: Unable to determine (low confidence: ${(baseAndTip.confidence * 100).toFixed(1)}%)`);
       }
     }
 
@@ -796,10 +796,10 @@ export const calculateAlignmentRotation = (designedNailDirection, capturedNailDi
     const shouldRotate = designedNailDirection.confidence > 0.3 && capturedNailDirection.confidence > 0.3;
     
     if (shouldRotate && Math.abs(rotationNeeded) > 15) { // Only rotate if significant difference
-      console.log(`🔄 ROTATION ALIGNMENT SUGGESTION:`);
-      console.log(`   Designed nail: ${designedNailDirection.emoji} ${designedNailDirection.direction} (${designedAngle.toFixed(1)}°)`);
-      console.log(`   Captured nail: ${capturedNailDirection.emoji} ${capturedNailDirection.direction} (${capturedAngle.toFixed(1)}°)`);
-      console.log(`   ↻ Rotate designed nail by: ${rotationNeeded.toFixed(1)}° ${rotationNeeded > 0 ? 'counterclockwise' : 'clockwise'}`);
+      // console.log(`🔄 ROTATION ALIGNMENT SUGGESTION:`);
+      // console.log(`   Designed nail: ${designedNailDirection.emoji} ${designedNailDirection.direction} (${designedAngle.toFixed(1)}°)`);
+      // console.log(`   Captured nail: ${capturedNailDirection.emoji} ${capturedNailDirection.direction} (${capturedAngle.toFixed(1)}°)`);
+      // console.log(`   ↻ Rotate designed nail by: ${rotationNeeded.toFixed(1)}° ${rotationNeeded > 0 ? 'counterclockwise' : 'clockwise'}`);
     }
 
     return {

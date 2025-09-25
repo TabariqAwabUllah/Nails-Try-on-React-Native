@@ -11,7 +11,7 @@ export const extractNailImage = async (nailData) => {
   try {
     // For now, we'll return the original data and let the component handle it
     // This could be enhanced later with react-native-view-shot for actual image extraction
-    console.log('Processing nail for image extraction:', nailData.id);
+    //console.log('Processing nail for image extraction:', nailData.id);
     
     // We'll create a base64 image using SVG conversion (placeholder approach)
     // In a real implementation, you might want to use react-native-view-shot
@@ -42,7 +42,7 @@ export const processNailsToImages = async (nailsData) => {
       })
     );
     
-    console.log('Processed', processedNails.length, 'nails with image URIs');
+    //console.log('Processed', processedNails.length, 'nails with image URIs');
     return processedNails;
   } catch (error) {
     console.error('Error processing nails to images:', error);

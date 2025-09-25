@@ -3,7 +3,7 @@ import React, { useState } from 'react'
 import Svg, { Polygon, Image as SvgImage } from 'react-native-svg';
 
 const ColorPic = ({colorPic = false, resultImage, nailPolygons = []}) => {
-    console.log("ColorPic comp / nailPolygons:", nailPolygons);
+    //console.log("ColorPic comp / nailPolygons:", nailPolygons);
     
     const [selectedColor, setSelectedColor] = useState(null);
     const [showTestPolygon, setShowTestPolygon] = useState(false);
@@ -21,7 +21,7 @@ const ColorPic = ({colorPic = false, resultImage, nailPolygons = []}) => {
     ];
 
     const applyColor = (color) => {
-        console.log("applyColor:", color);
+        //console.log("applyColor:", color);
         
         setSelectedColor(color);
     };
@@ -45,12 +45,12 @@ const ColorPic = ({colorPic = false, resultImage, nailPolygons = []}) => {
             </View> */}
 
             <View style={styles.imageContainer}>
-                {console.log("Image dimensions - Width:", resultImage.width, "Height:", resultImage.height)}
+                {//console.log("Image dimensions - Width:", resultImage.width, "Height:", resultImage.height)}
 
                 <Image source={{uri: resultImage}} style={{ width: '100%', height: '100%'}}
                 onLoad={(event) => {
                     const { width, height } = event.nativeEvent.source;
-                    console.log("Actual image size:", width, "x", height);
+                    //console.log("Actual image size:", width, "x", height);
                 }}/>
                 <Svg height="100%" width="100%" 
                 style={{position: 'absolute'}}
@@ -64,9 +64,9 @@ const ColorPic = ({colorPic = false, resultImage, nailPolygons = []}) => {
                     
                     {/* Your nail polygons */}
                     {selectedColor && nailPolygons.map((points, index) => {
-                        // console.log(`Nail ${index} points:`, points);
+                        // //console.log(`Nail ${index} points:`, points);
                         const pointsString = points.map(p => `${p.x},${p.y}`).join(' ');
-                        // console.log(`Nail ${index} SVG points:`, pointsString);
+                        // //console.log(`Nail ${index} SVG points:`, pointsString);
                         return(
                         <Polygon 
                             key={index}

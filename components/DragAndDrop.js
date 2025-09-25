@@ -10,7 +10,12 @@ import Animated, {
 import Svg, { Defs, ClipPath, Polygon, Image as SvgImage } from 'react-native-svg';
 
 const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDimensions, isSelected, onTransformChange, onSelect, onDeselect }) => {
-  console.log(`DragAndDrop component ${index} rendering with data:`, !!nailData);
+// console.log(`🎨 DragAndDrop component ${index} rendering:`, {
+  //   hasNailData: !!nailData,
+  //   hasSourceImage: !!nailData?.sourceImage,
+  //   hasCapturedCenter: !!nailData?.capturedNailCenter,
+  //   designScale: nailData?.designScale
+  // });
   // console.log("DragAndDrop", check() );
   // function check (){
   //   nailData.map((items)=> console.log(items))
@@ -63,7 +68,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   // Apply initial rotation from nailData if auto-rotation is enabled
   React.useEffect(() => {
     if (nailData?.initialRotation && nailData?.shouldAutoRotate) {
-      console.log(`🔄 Applying initial auto-rotation of ${(nailData.initialRotation * 180 / Math.PI).toFixed(1)}° to designed nail ${index}`);
+      // console.log(`🔄 Applying initial auto-rotation of ${(nailData.initialRotation * 180 / Math.PI).toFixed(1)}° to designed nail ${index}`);
       rotation.value = nailData.initialRotation;
       savedRotation.value = nailData.initialRotation;
       
@@ -83,50 +88,98 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
 
   // Calculate nail dimensions and position early so they're available for gestures
   if (!nailData) {
-    console.log(`DragAndDrop ${index}: Missing nailData`);
+    // console.log(`DragAndDrop ${index}: Missing nailData`);
     return null;
   }
 
-  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight, capturedNailCenter, capturedNailDimensions, nailImageUri } = nailData;
-  
-  // Calculate scale based on captured nail dimensions if available, otherwise use fixed size
+  const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight, capturedNailCenter, capturedNailDimensions, nailImageUri, designScale } = nailData;
+
+  // Calculate nail size to match captured nail dimensions
   let nailWidth, nailHeight;
-  if (capturedNailDimensions) {
-    // Match the captured nail width, scale height proportionally
-    nailWidth = capturedNailDimensions.width;
-    const aspectRatio = bounds.height / bounds.width;
-    nailHeight = nailWidth * aspectRatio;
-    console.log(`🎯 Matching captured nail width: ${nailWidth.toFixed(1)}px, calculated height: ${nailHeight.toFixed(1)}px`);
+
+  if (capturedNailDimensions && originalImageDimensions) {
+    // Convert captured nail dimensions from SVG coordinates to screen coordinates
+    const scaleX = 390 / originalImageDimensions.width;
+    const scaleY = 844 / originalImageDimensions.height;
+
+    // Use captured nail size as the target size (converted to screen coordinates)
+    nailWidth = capturedNailDimensions.width * scaleX;
+    nailHeight = capturedNailDimensions.height * scaleY;
+
+    // console.log(`📐 SIZE MATCHING - Nail ${index}:`);
+    // console.log(`   Captured nail SVG size: ${capturedNailDimensions.width.toFixed(1)}x${capturedNailDimensions.height.toFixed(1)}`);
+    // console.log(`   Screen size: ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
   } else {
-    // Fallback to original sizing
-    const maxNailSize = 80;
-    const nailScale = Math.min(maxNailSize / bounds.width, maxNailSize / bounds.height);
-    nailWidth = bounds.width * nailScale;
-    nailHeight = bounds.height * nailScale;
-    console.log(`⚠️ Using fallback sizing: ${nailWidth.toFixed(1)}px x ${nailHeight.toFixed(1)}px`);
+    // Fallback: use design scale
+    nailWidth = bounds.width * designScale;
+    nailHeight = bounds.height * designScale;
+    // console.log(`📐 FALLBACK sizing for nail ${index}: ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)} (scale: ${designScale})`);
   }
 
-  console.log("Nail Width",nailWidth,"Nail Height",nailHeight);
-  
+  // console.log("Nail Width",nailWidth,"Nail Height",nailHeight);
 
-  // Position designed nail directly on top of captured nail center for perfect overlay
+  // Helper function to check if a point is inside the captured nail polygon (worklet)
+  const isPointInPolygon = useCallback((x, y, polygon) => {
+    'worklet';
+    if (!polygon || polygon.length < 3) return true; // No constraints if no polygon
+
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x;
+      const yi = polygon[i].y;
+      const xj = polygon[j].x;
+      const yj = polygon[j].y;
+
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  }, []);
+
+  // Get captured nail polygon for boundary constraints
+  const capturedPolygon = nailData.capturedPolygon || null;
+
+  // Convert SVG coordinates to screen coordinates for positioning
   let initialX, initialY;
-  
-  if (capturedNailCenter) {
-    // Center the designed nail exactly on the captured nail center
-    initialX = capturedNailCenter.x - (nailWidth / 2);
-    initialY = capturedNailCenter.y - (nailHeight / 2);
 
-    console.log(`🎯 OVERLAY: Positioning designed nail ${index} at (${initialX.toFixed(1)}, ${initialY.toFixed(1)}) over captured nail center (${capturedNailCenter.x.toFixed(1)}, ${capturedNailCenter.y.toFixed(1)})`);
-    
+  if (capturedNailCenter && originalImageDimensions?.width && originalImageDimensions?.height) {
+    // Simple direct conversion - the SVG is rendered at full screen size
+    // so we just need to scale from original image dimensions to screen dimensions
+    const screenWidth = 390;
+    const screenHeight = 844;
+
+    // Direct scale factors from original image to screen
+    const scaleX = screenWidth / originalImageDimensions.width;
+    const scaleY = screenHeight / originalImageDimensions.height;
+
+    // Convert center position directly to screen coordinates
+    const screenCenterX = capturedNailCenter.x * scaleX;
+    const screenCenterY = capturedNailCenter.y * scaleY;
+
+    // Position the design nail centered on the captured nail center
+    const halfWidth = (nailWidth || 0) / 2;
+    const halfHeight = (nailHeight || 0) / 2;
+
+    initialX = Math.max(0, screenCenterX - halfWidth);
+    initialY = Math.max(0, screenCenterY - halfHeight);
+
+    // Ensure coordinates are valid numbers
+    if (!isFinite(initialX) || !isFinite(initialY)) {
+      initialX = 200;
+      initialY = 400;
+      // console.log(`⚠️ Invalid coordinates for nail ${index}, using fallback`);
+    } else {
+      // console.log(`🎯 COORDINATE CONVERSION - Nail ${index}:`);
+      // console.log(`   SVG center: (${capturedNailCenter.x.toFixed(1)}, ${capturedNailCenter.y.toFixed(1)})`);
+      // console.log(`   Screen center: (${screenCenterX.toFixed(1)}, ${screenCenterY.toFixed(1)})`);
+      // console.log(`   Final position: (${initialX.toFixed(1)}, ${initialY.toFixed(1)})`);
+    }
   } else {
-    // Fallback positioning if no captured nail center is available
-    const screenCenterX = 200; 
-    const screenCenterY = 400; 
-    initialX = screenCenterX + ((index % 2) * 120) - 60;
-    initialY = screenCenterY + (Math.floor(index / 2) * 120) - 60;
-
-    console.log(`⚠️  FALLBACK: Positioning designed nail ${index} at fallback location (${initialX}, ${initialY})`);
+    // Fallback: place in middle of screen
+    initialX = 200;
+    initialY = 400;
+// console.log(`⚠️ No center or dimensions for nail ${index}, using fallback`);
   }
 
   // Helper function to calculate angle from nail center to finger position
@@ -138,7 +191,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   // Rotation control gesture
   const rotationControlGesture = Gesture.Pan()
     .onStart((event) => {
-      console.log(`Rotation control started for nail ${index}`);
+      // runOnJS(console.log)(`Rotation control started for nail ${index}`);
       isRotating.value = true;
       
       // Calculate nail center in screen coordinates
@@ -151,7 +204,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       // Calculate initial angle from center to finger position
       rotationStartAngle.value = calculateAngle(nailCenterX, nailCenterY, event.absoluteX, event.absoluteY) - savedRotation.value;
 
-      console.log("onStart in rotation gesture.Pan(); nailCenterX",nailCenterX,"nailCenterY",nailCenterY, "rotationStartAngle",rotationStartAngle.value);
+      // Debug info moved to UI thread
+      // runOnJS(console.log)("onStart in rotation gesture.Pan(); nailCenterX",nailCenterX,"nailCenterY",nailCenterY, "rotationStartAngle",rotationStartAngle.value);
       
     })
     .onUpdate((event) => {
@@ -166,11 +220,12 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
         // Calculate rotation relative to start
         const newRotation = currentAngle - rotationStartAngle.value;
         rotation.value = newRotation;
-        console.log("onUpdate in rotation gesture.Pan(); nailCenterX",nailCenterX,"nailCenterY",nailCenterY, "rotationStartAngle",rotationStartAngle.value);
+        // Debug info commented out for performance
+        // runOnJS(console.log)("onUpdate in rotation gesture.Pan(); nailCenterX",nailCenterX,"nailCenterY",nailCenterY, "rotationStartAngle",rotationStartAngle.value);
       }
     })
     .onEnd(() => {
-      console.log(`Rotation control ended for nail ${index}`);
+      // runOnJS(console.log)(`Rotation control ended for nail ${index}`);
       isRotating.value = false;
       savedRotation.value = rotation.value;
       
@@ -197,8 +252,9 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   // Zoom control gesture
   const zoomControlGesture = Gesture.Pan()
     .onStart((event) => {
-      console.log(`Zoom control started for nail ${index}`);
-      console.log("onStart in zoom gesture.Pan();, event", event);
+      // runOnJS(console.log)(`Zoom control started for nail ${index}`);
+      // Debug event info commented out
+      // runOnJS(console.log)("onStart in zoom gesture.Pan();, event", event);
       
       isZooming.value = true;
       
@@ -230,7 +286,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       }
     })
     .onEnd(() => {
-      console.log(`Zoom control ended for nail ${index}`);
+      // runOnJS(console.log)(`Zoom control ended for nail ${index}`);
       isZooming.value = false;
       savedScale.value = scale.value;
       savedScaleX.value = scaleX.value;
@@ -251,7 +307,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   // Width control gesture
   const widthControlGesture = Gesture.Pan()
     .onStart((event) => {
-      console.log(`Width control started for nail ${index}`);
+      // runOnJS(console.log)(`Width control started for nail ${index}`);
       isWidthScaling.value = true;
       widthStartScale.value = scaleX.value;
     })
@@ -261,13 +317,14 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
         const scaleChange = event.translationX / 100; // Sensitivity factor
         const newScaleX = Math.max(0.3, Math.min(4, widthStartScale.value + scaleChange));
         
-        console.log(`Width scaling: ${newScaleX.toFixed(2)} for nail ${index}`);
+        // Width scaling debug commented out for performance
+        // runOnJS(console.log)(`Width scaling: ${newScaleX.toFixed(2)} for nail ${index}`);
         scaleX.value = newScaleX;
         // Keep scaleY unchanged when adjusting width
       }
     })
     .onEnd(() => {
-      console.log(`Width control ended for nail ${index}`);
+      // runOnJS(console.log)(`Width control ended for nail ${index}`);
       isWidthScaling.value = false;
       savedScaleX.value = scaleX.value;
       
@@ -286,7 +343,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   // Height control gesture
   const heightControlGesture = Gesture.Pan()
     .onStart((event) => {
-      console.log(`Height control started for nail ${index}`);
+      // runOnJS(console.log)(`Height control started for nail ${index}`);
       isHeightScaling.value = true;
       heightStartScale.value = scaleY.value;
     })
@@ -296,13 +353,14 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
         const scaleChange = -event.translationY / 100; // Negative because dragging up should increase height
         const newScaleY = Math.max(0.3, Math.min(4, heightStartScale.value + scaleChange));
         
-        console.log(`Height scaling: ${newScaleY.toFixed(2)} for nail ${index}`);
+        // Height scaling debug commented out for performance
+        // runOnJS(console.log)(`Height scaling: ${newScaleY.toFixed(2)} for nail ${index}`);
         scaleY.value = newScaleY;
         // Keep scaleX unchanged when adjusting height
       }
     })
     .onEnd(() => {
-      console.log(`Height control ended for nail ${index}`);
+      // runOnJS(console.log)(`Height control ended for nail ${index}`);
       isHeightScaling.value = false;
       savedScaleY.value = scaleY.value;
       
@@ -318,17 +376,27 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
       }
     });
 
-  // Pan gesture
+  // Pan gesture with boundary constraints
   const panGesture = Gesture.Pan()
     .onStart(() => {
-      console.log(`Pan started for nail ${index}`);
+      // runOnJS(console.log)(`Pan started for nail ${index}`);
     })
     .onUpdate((event) => {
-      translateX.value = savedTranslateX.value + event.translationX;
-      translateY.value = savedTranslateY.value + event.translationY;
+      // Calculate new position
+      const newTranslateX = savedTranslateX.value + event.translationX;
+      const newTranslateY = savedTranslateY.value + event.translationY;
+
+      // Calculate nail center position with new translation
+      const nailCenterX = initialX + (nailWidth / 2) + newTranslateX;
+      const nailCenterY = initialY + (nailHeight / 2) + newTranslateY;
+
+      
+      // Allow free movement - no boundary constraints
+      translateX.value = newTranslateX;
+      translateY.value = newTranslateY;
     })
     .onEnd(() => {
-      console.log(`Pan ended for nail ${index}`);
+      // runOnJS(console.log)(`Pan ended for nail ${index}`);
       savedTranslateX.value = translateX.value;
       savedTranslateY.value = translateY.value;
       
@@ -377,14 +445,15 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   // Rotation gesture
   const rotationGesture = Gesture.Rotation()
     .onStart(() => {
-      console.log(`Rotation started for nail ${index}`);
+      // runOnJS(console.log)(`Rotation started for nail ${index}`);
     })
     .onUpdate((event) => {
       rotation.value = savedRotation.value + event.rotation;
-      console.log(`Rotation angle: ${(rotation.value * 180 / Math.PI).toFixed(1)}° for nail ${index}`);
+      // Rotation debug commented out for performance
+      // runOnJS(console.log)(`Rotation angle: ${(rotation.value * 180 / Math.PI).toFixed(1)}° for nail ${index}`);
     })
     .onEnd(() => {
-      console.log(`Rotation ended for nail ${index}`);
+      // runOnJS(console.log)(`Rotation ended for nail ${index}`);
       savedRotation.value = rotation.value;
       
       runOnJS(handleTransformChange)({
@@ -402,15 +471,19 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
     .numberOfTaps(1)
     .maxDuration(250)
     .onStart(() => {
-      console.log(`Single tap for nail ${index} - toggling selection`);
-      if (isSelected) {
-        if (onDeselect) {
-          runOnJS(onDeselect)(index);
+      try {
+        // runOnJS(console.log)(`Single tap for nail ${index} - toggling selection`);
+        if (isSelected) {
+          if (onDeselect && typeof onDeselect === 'function') {
+            runOnJS(onDeselect)();
+          }
+        } else {
+          if (onSelect && typeof onSelect === 'function') {
+            runOnJS(onSelect)(index);
+          }
         }
-      } else {
-        if (onSelect) {
-          runOnJS(onSelect)(index);
-        }
+      } catch (error) {
+        // runOnJS(console.error)('Tap gesture error:', error);
       }
     });
 
@@ -418,28 +491,31 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const doubleTapGesture = Gesture.Tap()
     .numberOfTaps(2)
     .onStart(() => {
-      console.log(`Double tap for nail ${index} - zooming to 2x`);
-      // Animate to 2x scale
-      const newScale = scale.value === 2 ? 1 : 2; // Toggle between 1x and 2x
-      console.log("New scale on double tap:", scale);
-      
-      scale.value = withSpring(newScale);
-      // Reset both dimensions to use uniform scaling
-      scaleX.value = withSpring(newScale);
-      scaleY.value = withSpring(newScale);
-      savedScale.value = newScale;
-      savedScaleX.value = newScale;
-      savedScaleY.value = newScale;
-      
-      if (handleTransformChange) {
-        runOnJS(handleTransformChange)({
-          x: translateX.value,
-          y: translateY.value,
-          scale: newScale,
-          scaleX: scaleX.value,
-          scaleY: scaleY.value,
-          rotation: rotation.value
-        });
+      try {
+        // runOnJS(console.log)(`Double tap for nail ${index} - zooming to 2x`);
+        // Animate to 2x scale
+        const newScale = scale.value === 2 ? 1 : 2; // Toggle between 1x and 2x
+
+        scale.value = withSpring(newScale);
+        // Reset both dimensions to use uniform scaling
+        scaleX.value = withSpring(newScale);
+        scaleY.value = withSpring(newScale);
+        savedScale.value = newScale;
+        savedScaleX.value = newScale;
+        savedScaleY.value = newScale;
+
+        if (handleTransformChange && typeof handleTransformChange === 'function') {
+          runOnJS(handleTransformChange)({
+            x: translateX.value,
+            y: translateY.value,
+            scale: newScale,
+            scaleX: scaleX.value,
+            scaleY: scaleY.value,
+            rotation: rotation.value
+          });
+        }
+      } catch (error) {
+        // runOnJS(console.error)('Double tap gesture error:', error);
       }
     });
 
@@ -542,13 +618,13 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
     };
   });
 
-  console.log("Nail data:", nailData);
-  console.log(`DragAndDrop nail ${index}: Individual nail size ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
-  console.log(`Positioning designed nail ${index} on captured nail center:`, capturedNailCenter);
+  // console.log("Nail data:", nailData);
+  // console.log(`DragAndDrop nail ${index}: Individual nail size ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
+  // console.log(`Positioning designed nail ${index} on captured nail center:`, capturedNailCenter);
   
   if (nailData?.shouldAutoRotate) {
     const rotationDegrees = (nailData.initialRotation * 180 / Math.PI).toFixed(1);
-    console.log(`🔄 Nail ${index} auto-rotated: ${rotationDegrees}° (${nailData.designedDirection?.direction} → ${nailData.capturedDirection?.direction})`);
+// console.log(`🔄 Nail ${index} auto-rotated: ${rotationDegrees}° (${nailData.designedDirection?.direction} → ${nailData.capturedDirection?.direction})`);
   }
   
   return (
@@ -568,6 +644,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
           width={nailWidth} 
           height={nailHeight}
           viewBox={`0 0 ${cropWidth} ${cropHeight}`}
+          // viewBox={`0 0 600 600`} // Fixed viewBox to avoid distortion
         >
           <Defs>
             <ClipPath id={`individual-nail-${index}`}>

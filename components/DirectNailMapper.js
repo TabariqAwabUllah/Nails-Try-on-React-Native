@@ -38,7 +38,7 @@ const DirectNailRenderer = ({
       height: mapping.sourceImageDimensions.height * mapping.scale
     };
     
-    console.log(`Direct mapping ${mapping.index}:`, {
+    //console.log(`Direct mapping ${mapping.index}:`, {
       capturedBounds: mapping.capturedBounds,
       designedBounds: mapping.designedBounds,
       scale: mapping.scale,
@@ -110,7 +110,7 @@ const DirectNailRenderer = ({
       </React.Fragment>
     );
   } catch (error) {
-    console.log(`Error rendering direct nail mapping ${mapping?.index}:`, error);
+    //console.log(`Error rendering direct nail mapping ${mapping?.index}:`, error);
     
     // Fallback to solid color on error
     return (
@@ -182,7 +182,7 @@ const SimpleDirectNailRenderer = ({
       </React.Fragment>
     );
   } catch (error) {
-    console.log(`Error rendering simple direct nail mapping ${mapping?.index}:`, error);
+    //console.log(`Error rendering simple direct nail mapping ${mapping?.index}:`, error);
     
     // Fallback to solid color on error
     return (
