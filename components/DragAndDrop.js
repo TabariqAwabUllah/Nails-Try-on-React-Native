@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Text, Image } from 'react-native';
+import { Text, Image, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { 
   useAnimatedStyle, 
@@ -95,26 +95,44 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const { bounds, sourceImage, polygon, sourceImageDimensions, cropX, cropY, cropWidth, cropHeight, capturedNailCenter, capturedNailDimensions, nailImageUri, designScale } = nailData;
 
   // Calculate nail size to match captured nail dimensions
-  let nailWidth, nailHeight;
+  // Need to account for resizeMode='contain' scaling
 
-  if (capturedNailDimensions && originalImageDimensions) {
-    // Convert captured nail dimensions from SVG coordinates to screen coordinates
-    const scaleX = 390 / originalImageDimensions.width;
-    const scaleY = 844 / originalImageDimensions.height;
 
-    // Use captured nail size as the target size (converted to screen coordinates)
-    nailWidth = capturedNailDimensions.width * scaleX;
-    nailHeight = capturedNailDimensions.height * scaleY;
+// Calculate nail size to match captured nail dimensions
+let nailWidth, nailHeight;
 
-    // console.log(`📐 SIZE MATCHING - Nail ${index}:`);
-    // console.log(`   Captured nail SVG size: ${capturedNailDimensions.width.toFixed(1)}x${capturedNailDimensions.height.toFixed(1)}`);
-    // console.log(`   Screen size: ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
+if (capturedNailDimensions && originalImageDimensions) {
+  // Calculate screen scaling factors
+  const screenWidth = 390;
+  const availableHeight = 844 - 220;
+  const imageAspectRatio = originalImageDimensions.width / originalImageDimensions.height;
+  const containerAspectRatio = screenWidth / availableHeight;
+
+  let displayWidth, displayHeight;
+
+  if (imageAspectRatio > containerAspectRatio) {
+    displayWidth = screenWidth;
+    displayHeight = screenWidth / imageAspectRatio;
   } else {
-    // Fallback: use design scale
-    nailWidth = bounds.width * designScale;
-    nailHeight = bounds.height * designScale;
-    // console.log(`📐 FALLBACK sizing for nail ${index}: ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)} (scale: ${designScale})`);
+    displayHeight = availableHeight;
+    displayWidth = availableHeight * imageAspectRatio;
   }
+
+  // Calculate scale factors from SVG coordinates to screen coordinates
+  const scaleX = displayWidth / originalImageDimensions.width;
+  const scaleY = displayHeight / originalImageDimensions.height;
+
+  // FIXED: Use captured nail width directly, scaled to screen coordinates
+  // No additional designScale applied - just pure conversion from SVG to screen
+  nailWidth = capturedNailDimensions.width * scaleX;
+  nailHeight = capturedNailDimensions.height * scaleY;
+
+} else {
+  // Fallback: use design scale with reasonable size
+  nailWidth = bounds.width * designScale * 0.5;
+  nailHeight = bounds.height * designScale * 0.5;
+  console.log(`📐 FALLBACK sizing for nail ${index}: ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
+}
 
   // console.log("Nail Width",nailWidth,"Nail Height",nailHeight);
 
@@ -141,45 +159,66 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const capturedPolygon = nailData.capturedPolygon || null;
 
   // Convert SVG coordinates to screen coordinates for positioning
+  // Account for resizeMode='contain' which maintains aspect ratio
   let initialX, initialY;
 
   if (capturedNailCenter && originalImageDimensions?.width && originalImageDimensions?.height) {
-    // Simple direct conversion - the SVG is rendered at full screen size
-    // so we just need to scale from original image dimensions to screen dimensions
-    const screenWidth = 390;
-    const screenHeight = 844;
+    // Since both the SVG and DragAndDrop are positioned absolutely within the same container,
+    // and the SVG uses the same viewBox as original image dimensions,
+    // we should use SVG coordinates directly but scale them to match the actual display size
 
-    // Direct scale factors from original image to screen
-    const scaleX = screenWidth / originalImageDimensions.width;
-    const scaleY = screenHeight / originalImageDimensions.height;
+    // The key insight: the SVG viewBox scales automatically to fit the container
+    // We need to position our absolute elements using the same scaling
 
-    // Convert center position directly to screen coordinates
-    const screenCenterX = capturedNailCenter.x * scaleX;
-    const screenCenterY = capturedNailCenter.y * scaleY;
+    // Since the container uses flex: 1, let's assume it takes most of the screen
+    // minus the bottom UI (roughly 220px based on colorContainer height)
+    const screenWidth = 390; // Full screen width
+    const availableHeight = 800 // Screen height minus bottom UI
+
+    // Calculate how the image is displayed with resizeMode='contain'
+    const imageAspectRatio = originalImageDimensions.width / originalImageDimensions.height;
+    const containerAspectRatio = screenWidth / availableHeight;
+
+    let displayWidth, displayHeight, offsetX = 0, offsetY = 0;
+
+    if (imageAspectRatio > containerAspectRatio) {
+      // Image is wider - fit to width, center vertically
+      displayWidth = screenWidth;
+      displayHeight = screenWidth / imageAspectRatio;
+      offsetY = (availableHeight - displayHeight) / 2;
+    } else {
+      // Image is taller - fit to height, center horizontally
+      displayHeight = availableHeight;
+      displayWidth = availableHeight * imageAspectRatio;
+      offsetX = (screenWidth - displayWidth) / 2;
+    }
+
+    // Scale factor from SVG coordinates to screen coordinates
+    const scaleX = displayWidth / originalImageDimensions.width;
+    const scaleY = displayHeight / originalImageDimensions.height;
+
+    // Convert SVG center to screen coordinates
+    const screenCenterX = (capturedNailCenter.x * scaleX) + offsetX;
+    const screenCenterY = (capturedNailCenter.y * scaleY) + offsetY;
 
     // Position the design nail centered on the captured nail center
-    const halfWidth = (nailWidth || 0) / 2;
+    const halfWidth = (nailWidth || 0) ;
     const halfHeight = (nailHeight || 0) / 2;
 
-    initialX = Math.max(0, screenCenterX - halfWidth);
-    initialY = Math.max(0, screenCenterY - halfHeight);
+    initialX = screenCenterX - halfWidth;
+    initialY = screenCenterY - halfHeight;
 
     // Ensure coordinates are valid numbers
     if (!isFinite(initialX) || !isFinite(initialY)) {
       initialX = 200;
-      initialY = 400;
-      // console.log(`⚠️ Invalid coordinates for nail ${index}, using fallback`);
-    } else {
-      // console.log(`🎯 COORDINATE CONVERSION - Nail ${index}:`);
-      // console.log(`   SVG center: (${capturedNailCenter.x.toFixed(1)}, ${capturedNailCenter.y.toFixed(1)})`);
-      // console.log(`   Screen center: (${screenCenterX.toFixed(1)}, ${screenCenterY.toFixed(1)})`);
-      // console.log(`   Final position: (${initialX.toFixed(1)}, ${initialY.toFixed(1)})`);
-    }
+      initialY = 300;
+      console.log(`⚠️ Invalid coordinates for nail ${index}, using fallback`);
+    } 
   } else {
-    // Fallback: place in middle of screen
-    initialX = 200;
-    initialY = 400;
-// console.log(`⚠️ No center or dimensions for nail ${index}, using fallback`);
+    // Fallback: place in middle of available space
+    initialX = 195; // Half of 390
+    initialY = 312; // Half of (844-220)
+    console.log(`⚠️ No center or dimensions for nail ${index}, using fallback`);
   }
 
   // Helper function to calculate angle from nail center to finger position
@@ -220,6 +259,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
         // Calculate rotation relative to start
         const newRotation = currentAngle - rotationStartAngle.value;
         rotation.value = newRotation;
+  } else {
+    
         // Debug info commented out for performance
         // runOnJS(console.log)("onUpdate in rotation gesture.Pan(); nailCenterX",nailCenterX,"nailCenterY",nailCenterY, "rotationStartAngle",rotationStartAngle.value);
       }
@@ -638,30 +679,44 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
         },
         animatedStyle
       ]}>
+        {/* Debug marker to show where we think the center should be */}
+        {/* <View style={{
+          position: 'absolute',
+          left: (nailWidth / 2) - 3,
+          top: (nailHeight / 2) - 3,
+          width: 6,
+          height: 6,
+          backgroundColor: 'blue',
+          borderRadius: 3,
+          zIndex: 3000
+        }} /> */}
+
         {/* For now, we still use SVG clipping since we can't do true image extraction in React Native without additional libraries */}
         {/* The nailImageUri is available for future use when proper image extraction is implemented */}
-        <Svg 
-          width={nailWidth} 
-          height={nailHeight}
-          viewBox={`0 0 ${cropWidth} ${cropHeight}`}
-          // viewBox={`0 0 600 600`} // Fixed viewBox to avoid distortion
-        >
-          <Defs>
-            <ClipPath id={`individual-nail-${index}`}>
-              <Polygon points={polygon.map(p => `${p.x},${p.y}`).join(' ')} />
-            </ClipPath>
-          </Defs>
-          
-          <SvgImage
-            href={nailImageUri || sourceImage}
-            x={-cropX}
-            y={-cropY}
-            width={sourceImageDimensions.width}
-            height={sourceImageDimensions.height}
-            clipPath={`url(#individual-nail-${index})`}
-            preserveAspectRatio="none"
-          />
-        </Svg>
+        <View>
+          <Svg
+            width={nailWidth}
+            height={nailHeight}
+            viewBox={`0 0 ${cropWidth} ${cropHeight}`}
+            // viewBox={`0 0 600 600`} // Fixed viewBox to avoid distortion
+          >
+            <Defs>
+              <ClipPath id={`individual-nail-${index}`}>
+                <Polygon points={polygon.map(p => `${p.x},${p.y}`).join(' ')} />
+              </ClipPath>
+            </Defs>
+            
+            <SvgImage
+              href={nailImageUri || sourceImage}
+              x={-cropX}
+              y={-cropY}
+              width={sourceImageDimensions.width}
+              height={sourceImageDimensions.height}
+              clipPath={`url(#individual-nail-${index})`}
+              preserveAspectRatio="none" />
+          </Svg>
+        </View>
+        
         
         {/* Control Buttons - Only show when selected */}
         {isSelected && (
