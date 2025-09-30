@@ -122,10 +122,12 @@ if (capturedNailDimensions && originalImageDimensions) {
   const scaleX = displayWidth / originalImageDimensions.width;
   const scaleY = displayHeight / originalImageDimensions.height;
 
-  // FIXED: Use captured nail width directly, scaled to screen coordinates
-  // No additional designScale applied - just pure conversion from SVG to screen
-  nailWidth = capturedNailDimensions.width * scaleX;
-  nailHeight = capturedNailDimensions.height * scaleY;
+  // Match the WIDTH of the captured nail, maintaining design nail's aspect ratio
+  const capturedNailWidthScreen = capturedNailDimensions.width * scaleX;
+  const designNailAspectRatio = bounds.width / bounds.height;
+
+  nailWidth = capturedNailWidthScreen;
+  nailHeight = capturedNailWidthScreen / designNailAspectRatio;
 
 } else {
   // Fallback: use design scale with reasonable size
