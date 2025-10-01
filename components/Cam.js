@@ -3,12 +3,13 @@ import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image } fr
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
 import Svg, { Defs, ClipPath, Path, Rect, Polygon, RadialGradient, Stop, Circle } from 'react-native-svg';
-import DragAndDrop from './DragAndDrop';
+import Drag from './Drag';
 import RNFS from 'react-native-fs';
 import { processNailsToImages } from './NailImageExtractor';
 import { detectNailDirection, calculateAlignmentRotation, polygonUtils } from './NailMappingUtils';
 import NailPolygonUtils from './NailPolygonUtils';
 import LinearGradient from 'react-native-linear-gradient';
+import DragAndDrop from './DragAndDrop';
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -27,8 +28,8 @@ const Cam = ({showCamera=false}) => {
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
-  const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
-  // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
+  // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
+  const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
@@ -723,8 +724,8 @@ const Cam = ({showCamera=false}) => {
           {designMode && extractedNailImages?.map?.((nailData, index) => {
             console.log("nailData:", nailData);
             console.log("originalImageDimensions:", originalImageDimensions);
-            
-            
+
+
             return (
               <DragAndDrop
                   key={`nail-${index}`}
@@ -732,6 +733,7 @@ const Cam = ({showCamera=false}) => {
                   index={index}
                   designImageDimensions={designImageDimensions}
                   originalImageDimensions={originalImageDimensions}
+                  backgroundImage={resultImage}
                   isSelected={selectedNailIndex === index}
                   onTransformChange={(transforms) => handleNailTransform(index, transforms)}
                   onSelect={() => handleNailSelection(index)}
@@ -744,11 +746,11 @@ const Cam = ({showCamera=false}) => {
               const direction = designedNailDirections[index];
               if (direction && nailData?.capturedNailCenter) {
                   const letter = getDirectionLetter(direction.direction);
-                  
+
                   return (
                       <View
                           key={`designed-direction-${index}`}
-                          style={[styles.directionIndicator, {     
+                          style={[styles.directionIndicator, {
                             left: nailData.capturedNailCenter.x - 10,
                             top: nailData.capturedNailCenter.y - 35,
                             }]}
@@ -930,7 +932,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 900
-
   },
 });
 

@@ -1,15 +1,16 @@
-import React, { useCallback } from 'react';
-import { Text, Image, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Text, Image, View, Dimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { 
-  useAnimatedStyle, 
+import Animated, {
+  useAnimatedStyle,
   useSharedValue,
   runOnJS,
-  withSpring
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 import Svg, { Defs, ClipPath, Polygon, Image as SvgImage } from 'react-native-svg';
 
-const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDimensions, isSelected, onTransformChange, onSelect, onDeselect }) => {
+const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDimensions, backgroundImage, isSelected, onTransformChange, onSelect, onDeselect }) => {
 // console.log(`🎨 DragAndDrop component ${index} rendering:`, {
   //   hasNailData: !!nailData,
   //   hasSourceImage: !!nailData?.sourceImage,
@@ -20,7 +21,10 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   // function check (){
   //   nailData.map((items)=> console.log(items))
   // }
-  
+
+  // State for zoom overlay
+  // const [isZoomActive, setIsZoomActive] = useState(false);
+
   // Shared values for animations
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -28,6 +32,10 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const scaleX = useSharedValue(1);
   const scaleY = useSharedValue(1);
   const rotation = useSharedValue(0);
+
+  // Shared values for zoom overlay
+  // const zoomOverlayOpacity = useSharedValue(0);
+  // const zoomOverlayScale = useSharedValue(0.5);
 
   // console.log("scale1:", scale, "scaleX:", scaleX, "scaleY:", scaleY, "rotation:", rotation, "translateX:", translateX, "translateY:", translateY);
   
@@ -419,10 +427,33 @@ if (capturedNailDimensions && originalImageDimensions) {
       }
     });
 
-  // Pan gesture with boundary constraints
+  // Helper functions for zoom
+  // const activateZoom = useCallback(() => {
+  //   setIsZoomActive(true);
+  // }, []);
+
+  // const deactivateZoom = useCallback(() => {
+  //   setIsZoomActive(false);
+  // }, []);
+
+  // Long press gesture to activate zoom
+  // const longPressGesture = Gesture.LongPress()
+  //   .minDuration(300)
+  //   .onStart(() => {
+  //     // Activate zoom overlay
+  //     zoomOverlayOpacity.value = withTiming(1, { duration: 200 });
+  //     zoomOverlayScale.value = withSpring(1);
+  //     runOnJS(activateZoom)();
+  //   });
+
+  // Pan gesture with boundary constraints and zoom integration
   const panGesture = Gesture.Pan()
     .onStart(() => {
       // runOnJS(console.log)(`Pan started for nail ${index}`);
+      // Activate zoom when drag starts
+      // zoomOverlayOpacity.value = withTiming(1, { duration: 200 });
+      // zoomOverlayScale.value = withSpring(1);
+      // runOnJS(activateZoom)();
     })
     .onUpdate((event) => {
       // Calculate new position
@@ -433,7 +464,7 @@ if (capturedNailDimensions && originalImageDimensions) {
       const nailCenterX = initialX + (nailWidth / 2) + newTranslateX;
       const nailCenterY = initialY + (nailHeight / 2) + newTranslateY;
 
-      
+
       // Allow free movement - no boundary constraints
       translateX.value = newTranslateX;
       translateY.value = newTranslateY;
@@ -442,7 +473,12 @@ if (capturedNailDimensions && originalImageDimensions) {
       // runOnJS(console.log)(`Pan ended for nail ${index}`);
       savedTranslateX.value = translateX.value;
       savedTranslateY.value = translateY.value;
-      
+
+      // Deactivate zoom when drag ends
+      // zoomOverlayOpacity.value = withTiming(0, { duration: 200 });
+      // zoomOverlayScale.value = withTiming(0.5, { duration: 200 });
+      // runOnJS(deactivateZoom)();
+
       // Use a more modern approach instead of deprecated runOnJS
       if (handleTransformChange) {
         runOnJS(handleTransformChange)({
@@ -581,12 +617,12 @@ if (capturedNailDimensions && originalImageDimensions) {
     };
   });
 
-  // Animated style for rotation button
+  // Animated style for rotation button - moved further away
   const rotationButtonStyle = useAnimatedStyle(() => {
     return {
       position: 'absolute',
-      top: -12,
-      right: -12,
+      top: -25,
+      right: -30,
       width: 24,
       height: 24,
       backgroundColor: isRotating.value ? 'rgba(0, 0, 255, 1)' : 'rgba(0, 0, 255, 0.8)',
@@ -596,17 +632,16 @@ if (capturedNailDimensions && originalImageDimensions) {
       borderWidth: isRotating.value ? 2 : 1,
       borderColor: 'white',
       zIndex: 1001,
-      // elevation: 1001,
       transform: [{ scale: isRotating.value ? 1.1 : 1 }]
     };
   });
 
-  // Animated style for zoom button
+  // Animated style for zoom button - moved further away
   const zoomButtonStyle = useAnimatedStyle(() => {
     return {
       position: 'absolute',
-      bottom: -12,
-      right: -12,
+      bottom: -20,
+      right: -20,
       width: 24,
       height: 24,
       backgroundColor: isZooming.value ? 'rgba(0, 128, 0, 1)' : 'rgba(0, 128, 0, 0.8)',
@@ -614,18 +649,17 @@ if (capturedNailDimensions && originalImageDimensions) {
       justifyContent: 'center',
       alignItems: 'center',
       zIndex: 1001,
-      // elevation: 1001,
       borderWidth: isZooming.value ? 2 : 1,
       borderColor: 'white',
       transform: [{ scale: isZooming.value ? 1.1 : 1 }]
     };
   });
 
-  // Animated style for width button
+  // Animated style for width button - moved further away
   const widthButtonStyle = useAnimatedStyle(() => {
     return {
       position: 'absolute',
-      left: -12,
+      left: -20,
       top: '50%',
       marginTop: -12,
       width: 24,
@@ -641,12 +675,12 @@ if (capturedNailDimensions && originalImageDimensions) {
     };
   });
 
-  // Animated style for height button
+  // Animated style for height button - moved further away
   const heightButtonStyle = useAnimatedStyle(() => {
     return {
       position: 'absolute',
-      top: -12,
-      left: '50%',
+      top: -30,
+      left: '60%',
       marginLeft: -12,
       width: 24,
       height: 24,
@@ -661,6 +695,118 @@ if (capturedNailDimensions && originalImageDimensions) {
     };
   });
 
+  // Animated style for zoom overlay
+  // const zoomOverlayStyle = useAnimatedStyle(() => {
+  //   return {
+  //     opacity: zoomOverlayOpacity.value,
+  //     transform: [{ scale: zoomOverlayScale.value }],
+  //   };
+  // });
+
+  // Get actual screen dimensions dynamically
+  // const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  // const availableHeight = screenHeight - 220; // Subtract bottom UI height
+  // const zoomScale = 2.0; // 2x magnification for clear view
+
+  // const imageAspectRatio = originalImageDimensions?.width && originalImageDimensions?.height
+  //   ? originalImageDimensions.width / originalImageDimensions.height
+  //   : 1;
+  // const containerAspectRatio = screenWidth / availableHeight;
+
+  // let displayWidth, displayHeight, offsetX = 0, offsetY = 0;
+  // if (imageAspectRatio > containerAspectRatio) {
+  //   displayWidth = screenWidth;
+  //   displayHeight = screenWidth / imageAspectRatio;
+  //   offsetY = (availableHeight - displayHeight) / 2;
+  // } else {
+  //   displayHeight = availableHeight;
+  //   displayWidth = availableHeight * imageAspectRatio;
+  //   offsetX = (screenWidth - displayWidth) / 2;
+  // }
+  // const scaleXFactor = originalImageDimensions?.width ? displayWidth / originalImageDimensions.width : 1;
+  // const scaleYFactor = originalImageDimensions?.height ? displayHeight / originalImageDimensions.height : 1;
+
+  // Create shared values for dimensions that won't change during animation
+  // const bgDisplayWidth = useSharedValue(displayWidth);
+  // const bgDisplayHeight = useSharedValue(displayHeight);
+  // const bgOffsetX = useSharedValue(offsetX);
+  // const bgOffsetY = useSharedValue(offsetY);
+
+  // Animated style for the zoom content - follows nail position like a magnifier
+  // const zoomContentStyle = useAnimatedStyle(() => {
+  //   'worklet';
+  //   try {
+  //     // Current nail center in screen coordinates (absolute position on screen)
+  //     const screenNailCenterX = initialX + (nailWidth / 2) + translateX.value;
+  //     const screenNailCenterY = initialY + (nailHeight / 2) + translateY.value;
+
+  //     // Center of the zoom circle
+  //     const zoomCenterX = 150;
+  //     const zoomCenterY = 150;
+
+  //     // Position of nail center relative to the background image's top-left corner
+  //     const posInBgX = screenNailCenterX - bgOffsetX.value;
+  //     const posInBgY = screenNailCenterY - bgOffsetY.value;
+
+  //     // Calculate how to position the scaled background
+  //     // The background image will be scaled up, and we need to position it
+  //     // so that the point under the nail appears at the zoom center
+  //     const scaledLeft = -(posInBgX * zoomScale - zoomCenterX);
+  //     const scaledTop = -(posInBgY * zoomScale - zoomCenterY);
+
+  //     return {
+  //       left: scaledLeft,
+  //       top: scaledTop,
+  //       width: bgDisplayWidth.value,
+  //       height: bgDisplayHeight.value,
+  //       transform: [
+  //         { scale: zoomScale }
+  //       ]
+  //     };
+  //   } catch (error) {
+  //     return {
+  //       left: 0,
+  //       top: 0,
+  //       width: bgDisplayWidth.value,
+  //       height: bgDisplayHeight.value,
+  //       transform: []
+  //     };
+  //   }
+  // });
+
+  // Animated style for the designed nail in zoom view - positioned over background
+  // const zoomNailStyle = useAnimatedStyle(() => {
+  //   'worklet';
+  //   try {
+  //     // Current nail center in screen coordinates
+  //     const screenNailCenterX = initialX + (nailWidth / 2) + translateX.value;
+  //     const screenNailCenterY = initialY + (nailHeight / 2) + translateY.value;
+
+  //     // Center of the zoom circle
+  //     const centerOffset = 150;
+
+  //     // The nail should be centered in the zoom view
+  //     // Position it at the center, accounting for its size
+  //     const zoomNailX = centerOffset - (nailWidth * zoomScale / 2);
+  //     const zoomNailY = centerOffset - (nailHeight * zoomScale / 2);
+
+  //     return {
+  //       position: 'absolute',
+  //       left: zoomNailX,
+  //       top: zoomNailY,
+  //       width: nailWidth * zoomScale,
+  //       height: nailHeight * zoomScale,
+  //       transform: [
+  //         { scaleX: scaleX.value },
+  //         { scaleY: scaleY.value },
+  //         { rotate: `${rotation.value}rad` }
+  //       ],
+  //     };
+  //   } catch (error) {
+  //     return { transform: [] };
+  //   }
+  // });
+
   // console.log("Nail data:", nailData);
   // console.log(`DragAndDrop nail ${index}: Individual nail size ${nailWidth.toFixed(1)}x${nailHeight.toFixed(1)}`);
   // console.log(`Positioning designed nail ${index} on captured nail center:`, capturedNailCenter);
@@ -671,89 +817,196 @@ if (capturedNailDimensions && originalImageDimensions) {
   }
   
   return (
-    <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[
-        {
-          position: 'absolute',
-          left: initialX,
-          top: initialY,
-          zIndex: isSelected ? 2000 : 1000 + index,
-        },
-        animatedStyle
-      ]}>
-        {/* Debug marker to show where we think the center should be */}
-        {/* <View style={{
-          position: 'absolute',
-          left: (nailWidth / 2) - 3,
-          top: (nailHeight / 2) - 3,
-          width: 6,
-          height: 6,
-          backgroundColor: 'blue',
-          borderRadius: 3,
-          zIndex: 3000
-        }} /> */}
+    <>
+      <GestureDetector gesture={composedGesture}>
+        <Animated.View style={[
+          {
+            position: 'absolute',
+            left: initialX,
+            top: initialY,
+            zIndex: isSelected ? 2000 : 1000 + index,
+          },
+          animatedStyle
+        ]}>
+          {/* Debug marker to show where we think the center should be */}
+          {/* <View style={{
+            position: 'absolute',
+            left: (nailWidth / 2) - 3,
+            top: (nailHeight / 2) - 3,
+            width: 6,
+            height: 6,
+            backgroundColor: 'blue',
+            borderRadius: 3,
+            zIndex: 3000
+          }} /> */}
 
-        {/* For now, we still use SVG clipping since we can't do true image extraction in React Native without additional libraries */}
-        {/* The nailImageUri is available for future use when proper image extraction is implemented */}
-        <View>
-          <Svg
-            width={nailWidth}
-            height={nailHeight}
-            viewBox={`0 0 ${cropWidth} ${cropHeight}`}
-            // viewBox={`0 0 600 600`} // Fixed viewBox to avoid distortion
-          >
-            <Defs>
-              <ClipPath id={`individual-nail-${index}`}>
-                <Polygon points={polygon.map(p => `${p.x},${p.y}`).join(' ')} />
-              </ClipPath>
-            </Defs>
-            
-            <SvgImage
-              href={nailImageUri || sourceImage}
-              x={-cropX}
-              y={-cropY}
-              width={sourceImageDimensions.width}
-              height={sourceImageDimensions.height}
-              clipPath={`url(#individual-nail-${index})`}
-              preserveAspectRatio="none" />
-          </Svg>
-        </View>
-        
-        
-        {/* Control Buttons - Only show when selected */}
-        {isSelected && (
-          <>
-            {/* Rotation Button - Top Right */}
-            <GestureDetector gesture={rotationControlGesture}>
-              <Animated.View style={rotationButtonStyle}>
-                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>↻</Text>
-              </Animated.View>
-            </GestureDetector>
-            
-            {/* Zoom Button - Bottom Right */}
-            <GestureDetector gesture={zoomControlGesture}>
-              <Animated.View style={zoomButtonStyle}>
-                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>⊕</Text>
-              </Animated.View>
-            </GestureDetector>
+          {/* For now, we still use SVG clipping since we can't do true image extraction in React Native without additional libraries */}
+          {/* The nailImageUri is available for future use when proper image extraction is implemented */}
+          <View>
+            <Svg
+              width={nailWidth}
+              height={nailHeight}
+              viewBox={`0 0 ${cropWidth} ${cropHeight}`}
+              // viewBox={`0 0 600 600`} // Fixed viewBox to avoid distortion
+            >
+              <Defs>
+                <ClipPath id={`individual-nail-${index}`}>
+                  <Polygon points={polygon.map(p => `${p.x},${p.y}`).join(' ')} />
+                </ClipPath>
+              </Defs>
 
-             {/* Width Button - Left Middle */}
-            <GestureDetector gesture={widthControlGesture}>
-              <Animated.View style={widthButtonStyle}>
-                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>w</Text>
-              </Animated.View>
-            </GestureDetector>
+              <SvgImage
+                href={nailImageUri || sourceImage}
+                x={-cropX}
+                y={-cropY}
+                width={sourceImageDimensions.width}
+                height={sourceImageDimensions.height}
+                clipPath={`url(#individual-nail-${index})`}
+                preserveAspectRatio="none" />
+            </Svg>
+          </View>
+
+
+          {/* Control Buttons - Only show when selected */}
+          {isSelected && (
+            <>
+              {/* Rotation Button - Top Right */}
+              <GestureDetector gesture={rotationControlGesture}>
+                <Animated.View style={rotationButtonStyle}>
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>↻</Text>
+                </Animated.View>
+              </GestureDetector>
+
+              {/* Zoom Button - Bottom Right */}
+              <GestureDetector gesture={zoomControlGesture}>
+                <Animated.View style={zoomButtonStyle}>
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>⊕</Text>
+                </Animated.View>
+              </GestureDetector>
+
+               {/* Width Button - Left Middle */}
+              <GestureDetector gesture={widthControlGesture}>
+                <Animated.View style={widthButtonStyle}>
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>w</Text>
+                </Animated.View>
+              </GestureDetector>
+
+              {/* Height Button - Top Middle */}
+              <GestureDetector gesture={heightControlGesture}>
+                <Animated.View style={heightButtonStyle}>
+                  <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>H</Text>
+                </Animated.View>
+              </GestureDetector>
+            </>
+          )}
+        </Animated.View>
+      </GestureDetector>
+
+      {/* Magnified Zoom Overlay - Shows when dragging */}
+      {/* {isZoomActive && backgroundImage && originalImageDimensions?.width && originalImageDimensions?.height && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            {
+              position: 'absolute',
+              top: 100,
+              left: (screenWidth / 2) - 150,
+              width: 300,
+              height: 300,
+              backgroundColor: 'rgba(0, 0, 0, 0.1)',
+              borderRadius: 150,
+              borderWidth: 4,
+              borderColor: '#4CAF50',
+              overflow: 'hidden',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.5,
+              shadowRadius: 8,
+              elevation: 10,
+              zIndex: 9999,
+            },
+            zoomOverlayStyle
+          ]}
+        >
+          
+          <View style={{
+            width: 300,
+            height: 300,
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
             
-            {/* Height Button - Top Middle */}
-            <GestureDetector gesture={heightControlGesture}>
-              <Animated.View style={heightButtonStyle}>
-                <Text style={{ color: 'white', fontSize: 12, fontWeight: 'bold' }}>H</Text>
-              </Animated.View>
-            </GestureDetector>
-          </>
-        )}
-      </Animated.View>
-    </GestureDetector>
+            <Animated.View
+              style={[
+                {
+                  position: 'absolute',
+                },
+                zoomContentStyle
+              ]}
+            >
+              <Image
+                source={{ uri: backgroundImage }}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                }}
+                resizeMode="stretch"
+              />
+            </Animated.View>
+
+            
+            <Animated.View style={zoomNailStyle}>
+              <Svg
+                width={nailWidth * zoomScale}
+                height={nailHeight * zoomScale}
+                viewBox={`0 0 ${cropWidth} ${cropHeight}`}
+              >
+                <Defs>
+                  <ClipPath id={`zoom-nail-${index}`}>
+                    <Polygon points={polygon.map(p => `${p.x},${p.y}`).join(' ')} />
+                  </ClipPath>
+                </Defs>
+
+                <SvgImage
+                  href={nailImageUri || sourceImage}
+                  x={-cropX}
+                  y={-cropY}
+                  width={sourceImageDimensions.width}
+                  height={sourceImageDimensions.height}
+                  clipPath={`url(#zoom-nail-${index})`}
+                  preserveAspectRatio="none" />
+              </Svg>
+            </Animated.View>
+          </View>
+
+          
+          <View style={{
+            position: 'absolute',
+            top: 140,
+            left: 140,
+            width: 20,
+            height: 20,
+          }}>
+            <View style={{
+              position: 'absolute',
+              top: 9,
+              left: 0,
+              width: 20,
+              height: 2,
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            }} />
+            <View style={{
+              position: 'absolute',
+              top: 0,
+              left: 9,
+              width: 2,
+              height: 20,
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            }} />
+          </View>
+        </Animated.View>
+      )} */}
+    </>
   );
 };
 
