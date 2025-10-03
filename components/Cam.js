@@ -31,9 +31,9 @@ const Cam = ({showCamera=false}) => {
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
-  const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
+  // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
-  // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
+  const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
 
   const [originalImageDimensions, setOriginalImageDimensions] = useState({ width: 0, height: 0 });
@@ -410,36 +410,53 @@ const designNailsXY = async (imagePath) => {
         };
         setDesignImageDimensions(imageDimensions);
 
-        // Step 3: Detect finger directions for BOTH images using MediaPipe
-        console.log("🔍 Detecting finger directions...");
-
-        // Detect on captured image
+        // Step 3: Detect finger directions for CAPTURED image only
+        console.log("🔍 Detecting captured finger directions...");
         const capturedDirections = await detectFingerDirections(resultImage, 'CAPTURED IMAGE');
+        console.log("✅ Captured directions:", capturedDirections);
 
-        // Detect on design image (use LOCAL path)
-        const designDirections = await detectFingerDirections(localDesignPath, 'DESIGN IMAGE');
-
-        // Step 3: Match and calculate rotations
-        if (capturedDirections.hands.length > 0 && designDirections.hands.length > 0) {
+        // Step 4: Calculate rotations using exact angles from captured nails
+        if (capturedDirections.hands.length > 0) {
+            console.log("🔄 Calculating rotations using exact angles...");
             const capturedFingers = capturedDirections.hands[0].fingers;
-            const designFingers = designDirections.hands[0].fingers;
-            
-            const matches = matchNailsToFingers(capturedFingers, designFingers);
-            console.log("🎯 Nail matches with rotations:", matches);
-            
-            // Store matches for use in rendering
-            setNailTransforms(matches);
+
+            // Create rotation data for each nail using exact angles
+            const rotations = capturedFingers.map((finger, index) => {
+                // Use the exact angle from MediaPipe
+                const exactAngle = finger.angle;
+
+                console.log(`  Captured Nail ${index} (${finger.name}): Direction=${finger.direction}, Angle=${exactAngle.toFixed(1)}°`);
+                console.log(`  ➡️ Designed Nail ${index} will be rotated to: ${exactAngle.toFixed(1)}°`);
+
+                return {
+                    fingerIndex: index,
+                    fingerName: finger.name,
+                    capturedDirection: finger.direction,
+                    capturedAngle: exactAngle,
+                    rotationNeeded: exactAngle // Rotate to exact angle
+                };
+            });
+
+            console.log("\n🎯 All rotations calculated:", rotations);
+            console.log("\n📐 DESIGNED NAILS FINAL ANGLES:");
+            rotations.forEach((rot) => {
+                console.log(`  Designed Nail ${rot.fingerIndex} (${rot.fingerName}): ${rot.rotationNeeded.toFixed(1)}°`);
+            });
+
+            setNailTransforms(rotations);
+        } else {
+            console.log("⚠️ No hands detected in captured image");
         }
 
-        // Step 4: Continue with existing extraction logic
+        // Step 5: Continue with existing extraction logic
         console.log("🖼️ Extracting nail images...");
         const rawNailData = await extractNailImages(
-            designedPolygons, 
-            imagePath, 
-            imageDimensions, 
-            nailPolygons, 
+            designedPolygons,
+            imagePath,
+            imageDimensions,
+            nailPolygons,
             originalImageDimensions,
-            designDirections,
+            null, // designDirections - not needed anymore
             capturedDirections,
             capturedNailData
         );
@@ -769,7 +786,11 @@ const designNailsXY = async (imagePath) => {
               ? nailTransforms[index].rotationNeeded
               : 0;
 
-            console.log(`🔄 Nail ${index} rotation:`, rotationDegrees, "degrees");
+            const fingerName = Array.isArray(nailTransforms) && nailTransforms[index]?.fingerName
+              ? nailTransforms[index].fingerName
+              : `nail_${index}`;
+
+            console.log(`🔄 Designed Nail ${index} (${fingerName}): Applied rotation = ${rotationDegrees.toFixed(1)}°`);
 
             return (
               <DragAndDrop
