@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Defs, ClipPath, Polygon, Image as SvgImage } from 'react-native-svg';
 
-const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDimensions, backgroundImage, isSelected, onTransformChange, onSelect, onDeselect }) => {
+const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDimensions, backgroundImage, isSelected, initialRotation = 0, onTransformChange, onSelect, onDeselect }) => {
 // console.log(`🎨 DragAndDrop component ${index} rendering:`, {
   //   hasNailData: !!nailData,
   //   hasSourceImage: !!nailData?.sourceImage,
@@ -31,7 +31,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const scale = useSharedValue(1);
   const scaleX = useSharedValue(1);
   const scaleY = useSharedValue(1);
-  const rotation = useSharedValue(0);
+  const rotation = useSharedValue(initialRotation); // Apply initial rotation from MediaPipe
 
   // Shared values for zoom overlay
   // const zoomOverlayOpacity = useSharedValue(0);
@@ -46,7 +46,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const savedScale = useSharedValue(1);
   const savedScaleX = useSharedValue(1);
   const savedScaleY = useSharedValue(1);
-  const savedRotation = useSharedValue(0);
+  const savedRotation = useSharedValue(initialRotation); // Save initial rotation
 
   // Rotation control state
   const isRotating = useSharedValue(false);

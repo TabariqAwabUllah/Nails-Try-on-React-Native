@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image, ScrollView } from 'react-native';
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
+import { detectFingerDirections, matchNailsToFingers } from '../api/MediaPipeAPI';
 import Svg, { Defs, ClipPath, Path, Rect, Polygon, RadialGradient, Stop, Circle } from 'react-native-svg';
 import Drag from './Drag';
 import RNFS from 'react-native-fs';
@@ -10,6 +11,7 @@ import { detectNailDirection, calculateAlignmentRotation, polygonUtils } from '.
 import NailPolygonUtils from './NailPolygonUtils';
 import LinearGradient from 'react-native-linear-gradient';
 import DragAndDrop from './DragAndDrop';
+
 
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -45,6 +47,13 @@ const Cam = ({showCamera=false}) => {
   const [apiCall, setApiCall] = useState(false);
   const [capturedNailData, setCapturedNailData] = useState([]);
   const [nailWait, setNailWait] = useState(false);
+  const [mediaPipeFingerData, setMediaPipeFingerData] = useState(null);
+  const [showMediaPipeDirections, setShowMediaPipeDirections] = useState(false);
+  const [fingerDirections, setFingerDirections] = useState({
+    captured: null,
+    design: null,
+    matches: []
+});
       
   const colors = [
       { name: 'Red', color: '#800020' },
@@ -294,6 +303,26 @@ const Cam = ({showCamera=false}) => {
     setPhotoClicked(true);
     setDesignMode(false);
     setProcessedDesigns([]);
+    setMediaPipeFingerData(null);
+    setShowMediaPipeDirections(false);
+  }
+
+  // Function to detect finger directions using MediaPipe
+  const detectCapturedFingerDirections = async () => {
+    try {
+      // MediaPipeAPI.js will handle all logging
+      const directions = await detectFingerDirections(resultImage, 'CAPTURED IMAGE');
+
+      if (directions && directions.hands.length > 0) {
+        setMediaPipeFingerData(directions);
+        setShowMediaPipeDirections(true);
+        alert(`✅ Detected ${directions.hands.length} hand(s) with ${directions.hands[0].fingers.length} fingers!`);
+      } else {
+        alert("No hands detected in the image");
+      }
+    } catch (error) {
+      alert("Error detecting fingers: " + error.message);
+    }
   }
 
   const imageToModel = async (imagePath) => {
@@ -343,83 +372,93 @@ const Cam = ({showCamera=false}) => {
 
   }
 
-  const designNailsXY = async (imagePath) => {
+const designNailsXY = async (imagePath) => {
     try {
-
         setNailWait(true);
+
+        // Step 1: Download design image to local storage if it's a URL
+        let localDesignPath = imagePath;
+        if (imagePath.startsWith('http')) {
+            console.log("📥 Downloading design image from URL...");
+            const downloadDest = `${RNFS.CachesDirectoryPath}/design_nail_${Date.now()}.jpg`;
+            await RNFS.downloadFile({
+                fromUrl: imagePath,
+                toFile: downloadDest
+            }).promise;
+            localDesignPath = downloadDest;
+            console.log("✅ Downloaded to:", localDesignPath);
+            
+            
+        }
+
+        // Step 2: Detect design nails with Roboflow
         const roboflowResponse = await imageDesignAPI(imagePath);
-        console.log("Design Nail 1");
-        
+        console.log("✅ Design nails detected");
 
         if (!roboflowResponse?.predictions?.length) {
             alert("No nail designs detected in image");
+            setNailWait(false);
             return;
         }
 
         const designedPolygons = roboflowResponse.predictions.map(pred => pred.points);
-        
-        console.log("Design Nail 2");
-        
-        // Detect directions for all designed nails
-        // const designedDirections = designedPolygons.map((polygon, index) => {
-        //   return detectNailDirection(polygon, index, 'designed');
-        // });
-        
         setDesignPolygons(designedPolygons);
-        // setDesignedNailDirections(designedDirections);
+
         const imageDimensions = {
             width: roboflowResponse.image?.width || 1000,
             height: roboflowResponse.image?.height || 1000
         };
         setDesignImageDimensions(imageDimensions);
 
-        // Extract individual nail images with captured nail positions
+        // Step 3: Detect finger directions for BOTH images using MediaPipe
+        console.log("🔍 Detecting finger directions...");
 
-        console.log("Design Nail 3 - before extractNailImages");
-        
-        const rawNailData = await extractNailImages(designedPolygons, imagePath, imageDimensions, nailPolygons, originalImageDimensions, capturedNailDirections, capturedNailData);
+        // Detect on captured image
+        const capturedDirections = await detectFingerDirections(resultImage, 'CAPTURED IMAGE');
 
-        console.log("Design Nail 4 - after extractNailImages");
-        // console.log("   Raw nail data extracted:", rawNailData?.length || 0);
+        // Detect on design image (use LOCAL path)
+        const designDirections = await detectFingerDirections(localDesignPath, 'DESIGN IMAGE');
 
-        // Process nails to create individual images
-        // console.log("🖼️ Processing nails to images...");
-        console.log("Design Nail 5 - before processNailsToImages");
+        // Step 3: Match and calculate rotations
+        if (capturedDirections.hands.length > 0 && designDirections.hands.length > 0) {
+            const capturedFingers = capturedDirections.hands[0].fingers;
+            const designFingers = designDirections.hands[0].fingers;
+            
+            const matches = matchNailsToFingers(capturedFingers, designFingers);
+            console.log("🎯 Nail matches with rotations:", matches);
+            
+            // Store matches for use in rendering
+            setNailTransforms(matches);
+        }
+
+        // Step 4: Continue with existing extraction logic
+        console.log("🖼️ Extracting nail images...");
+        const rawNailData = await extractNailImages(
+            designedPolygons, 
+            imagePath, 
+            imageDimensions, 
+            nailPolygons, 
+            originalImageDimensions,
+            designDirections,
+            capturedDirections,
+            capturedNailData
+        );
+
+        console.log("🎨 Processing nails to images...");
         const processedNails = await processNailsToImages(rawNailData);
-        console.log("Design Nail 6 - after processNailsToImages");
-
-        // console.log("   Processed nails:", processedNails?.length || 0);
 
         setExtractedNailImages(processedNails);
-        // console.log("✅ setExtractedNailImages called with:", processedNails?.length || 0, "nails");
-        
-        // Summary of auto-rotations applied
-        // const autoRotatedCount = processedNails.filter(nail => nail.shouldAutoRotate).length;
-        // if (autoRotatedCount > 0) {
-        //   // console.log(`\n🎯 AUTO-ROTATION SUMMARY:`);
-        //   // console.log(`   ✅ ${autoRotatedCount} designed nail(s) automatically rotated to match captured nail directions`);
-        //   processedNails.forEach((nail, idx) => {
-        //     if (nail.shouldAutoRotate) {
-        //       const rotationDegrees = (nail.initialRotation * 180 / Math.PI).toFixed(1);
-        //       // console.log(`   🔄 Nail ${idx}: ${rotationDegrees}° rotation applied (${nail.designedDirection?.direction} → ${nail.capturedDirection?.direction})`);
-        //     }
-        //   });
-        // }
-
-        // console.log("🎯 FINAL STEP: Setting design mode to true");
-        // console.log("   extractedNailImages to be set:", processedNails?.length || 0);
         setDesignMode(true);
         setNailWait(false);
-        // console.log("✅ designNailsXY completed successfully");
+        console.log("✅ Design nails ready with direction alignment");
         
     } catch (error) {
-// console.log("Design processing error:", error);
+        console.log("❌ Design processing error:", error);
         setDesignMode(false);
         setNailWait(false);
-        setProcessedDesigns([]);
-        alert("Error processing design. Please try again.");
+        alert("Error processing design: " + error.message);
     }
-  }
+}
 
   async function checkPermission() {
 // console.log("Check permission");
@@ -725,20 +764,27 @@ const Cam = ({showCamera=false}) => {
             console.log("nailData:", nailData);
             console.log("originalImageDimensions:", originalImageDimensions);
 
+            // Get rotation for this nail from matches
+            const rotationDegrees = Array.isArray(nailTransforms) && nailTransforms[index]?.rotationNeeded
+              ? nailTransforms[index].rotationNeeded
+              : 0;
+
+            console.log(`🔄 Nail ${index} rotation:`, rotationDegrees, "degrees");
 
             return (
               <DragAndDrop
-                  key={`nail-${index}`}
-                  nailData={nailData}
-                  index={index}
-                  designImageDimensions={designImageDimensions}
-                  originalImageDimensions={originalImageDimensions}
-                  backgroundImage={resultImage}
-                  isSelected={selectedNailIndex === index}
-                  onTransformChange={(transforms) => handleNailTransform(index, transforms)}
-                  onSelect={() => handleNailSelection(index)}
-                  onDeselect={handleDeselectNail}
-              />
+                key={`nail-${index}`}
+                nailData={nailData}
+                index={index}
+                designImageDimensions={designImageDimensions}
+                originalImageDimensions={originalImageDimensions}
+                backgroundImage={resultImage}
+                isSelected={selectedNailIndex === index}
+                initialRotation={rotationDegrees}
+                onTransformChange={(transforms) => handleNailTransform(index, transforms)}
+                onSelect={() => handleNailSelection(index)}
+                onDeselect={handleDeselectNail}
+            />
           )})}
 
           {/* Direction indicators for designed nails */}
@@ -784,42 +830,75 @@ const Cam = ({showCamera=false}) => {
                     </TouchableOpacity>
                 ))}
             </View> */}
-            <View style={styles.colorRow}>
-                {colors.map((item, index) => (
-                    <TouchableOpacity 
-                        key={index}
-                        style={[styles.colorButton, {backgroundColor: item.color}]}
-                        onPress={() => applyColor(item.color)}
-                    >
-                        <Text style={styles.colorText}>{item.name}</Text>
-                    </TouchableOpacity>
-                ))}
-                
-                <TouchableOpacity onPress={()=>{
-                    designNailsXY(designNailImage);
-                }} style={[styles.colorButton, {backgroundColor: designMode ? '#4CAF50' : '#660036ff'}]}>
+            <ScrollView horizontal={true}>
+              <View style={styles.colorRow}>
+                  {colors.map((item, index) => (
+                      <TouchableOpacity 
+                          key={index}
+                          style={[styles.colorButton, {backgroundColor: item.color}]}
+                          onPress={() => applyColor(item.color)}
+                      >
+                          <Text style={styles.colorText}>{item.name}</Text>
+                      </TouchableOpacity>
+                  ))}
+                  
+                  <TouchableOpacity onPress={()=>{
+                      designNailsXY(designNailImage);
+                  }} style={[styles.colorButton, {backgroundColor: designMode ? '#4CAF50' : '#660036ff'}]}>
 
-                  {
-                    nailWait ? (
-                      <ActivityIndicator size="small" color="white" />
-                    ):(
-                      <Text style={{color: 'white', fontSize: 10}}>
-                        {designMode ? 'Change Design' : 'Design Pic'}
-                      </Text>
+                    {
+                      nailWait ? (
+                        <ActivityIndicator size="small" color="white" />
+                      ):(
+                        <Text style={{color: 'white', fontSize: 10}}>
+                          {designMode ? 'Change Design' : 'Design Pic'}
+                        </Text>
 
-                    )
-                  }
-                    
-                </TouchableOpacity>
-                
-                {/* {(capturedNailDirections.length > 0 || designedNailDirections.length > 0) && (
-                  <TouchableOpacity onPress={toggleDirectionsDisplay} style={[styles.colorButton, {backgroundColor: showDirections ? '#FF6B35' : '#2196F3'}]}>
-                      <Text style={{color: 'white', fontSize: 9}}>
-                          {showDirections ? 'Hide Dir' : 'Show Dir'}
-                      </Text>
+                      )
+                    }
+                      
                   </TouchableOpacity>
-                )} */}
-            </View>
+
+                  {/* MediaPipe Direction Detection Button */}
+                  <TouchableOpacity
+                    onPress={detectCapturedFingerDirections}
+                    style={[styles.colorButton, {backgroundColor: mediaPipeFingerData ? '#4CAF50' : '#FF9800'}]}
+                  >
+                    <Text style={{color: 'white', fontSize: 9}}>
+                      {mediaPipeFingerData ? '✅ Detected' : 'Finger Dir'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Toggle to show/hide direction labels */}
+                  {mediaPipeFingerData && (
+                    <TouchableOpacity
+                      onPress={() => setShowMediaPipeDirections(!showMediaPipeDirections)}
+                      style={[styles.colorButton, {backgroundColor: showMediaPipeDirections ? '#F44336' : '#2196F3'}]}
+                    >
+                      <Text style={{color: 'white', fontSize: 9}}>
+                        {showMediaPipeDirections ? 'Hide' : 'Show'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+              </View>
+            </ScrollView>
+
+            {/* Display MediaPipe finger directions */}
+            {/* {showMediaPipeDirections && mediaPipeFingerData && (
+              <View style={styles.directionsPanel}>
+                <Text style={styles.directionTitle}>📍 Finger Directions:</Text>
+                {mediaPipeFingerData.hands.map((hand, handIndex) => (
+                  <View key={handIndex}>
+                    <Text style={styles.handLabel}>✋ {hand.handedness}</Text>
+                    {hand.fingers.map((finger, fingerIndex) => (
+                      <Text key={fingerIndex} style={styles.fingerInfo}>
+                        {finger.emoji} {finger.name}: {finger.direction}
+                      </Text>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            )} */}
         </View>
         
         <TouchableOpacity style={styles.capButton} onPress={()=>backToCamera()}>
@@ -932,6 +1011,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 900
+  },
+  directionsPanel: {
+    backgroundColor: 'rgba(33, 150, 243, 0.95)',
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 10,
+    maxHeight: 150,
+  },
+  directionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  handLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#FFF9C4',
+    marginTop: 6,
+    marginBottom: 3,
+  },
+  fingerInfo: {
+    fontSize: 11,
+    color: 'white',
+    marginLeft: 10,
+    marginBottom: 2,
   },
 });
 
