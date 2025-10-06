@@ -68,22 +68,25 @@ class MediaPipeModule(reactContext: ReactApplicationContext) :
                 val handMap = Arguments.createMap()
                 val fingersArray = Arguments.createArray()
 
-                // Define fingers with their landmark indices
+                // Define fingers with their DIP and TIP landmark indices
+                // DIP = Distal Interphalangeal Joint (last joint before nail)
+                // TIP = Fingertip
+                // This gives us the NAIL SEGMENT angle, not the whole finger!
                 val fingers = listOf(
-                    Triple("thumb", 2, 4),      // base, tip
-                    Triple("index", 5, 8),
-                    Triple("middle", 9, 12),
-                    Triple("ring", 13, 16),
-                    Triple("pinky", 17, 20)
+                    Triple("thumb", 3, 4),      // THUMB_IP to THUMB_TIP
+                    Triple("index", 7, 8),       // INDEX_DIP to INDEX_TIP
+                    Triple("middle", 11, 12),    // MIDDLE_DIP to MIDDLE_TIP
+                    Triple("ring", 15, 16),      // RING_DIP to RING_TIP
+                    Triple("pinky", 19, 20)      // PINKY_DIP to PINKY_TIP
                 )
 
-                fingers.forEach { (name, baseIdx, tipIdx) ->
-                    val base = landmarks[baseIdx]
-                    val tip = landmarks[tipIdx]
+                fingers.forEach { (name, dipIdx, tipIdx) ->
+                    val dip = landmarks[dipIdx]  // DIP joint (last joint)
+                    val tip = landmarks[tipIdx]   // Fingertip
 
-                    // Calculate direction vector
-                    val dx = tip.x() - base.x()
-                    val dy = tip.y() - base.y()
+                    // Calculate direction vector from DIP to TIP (nail segment)
+                    val dx = tip.x() - dip.x()
+                    val dy = tip.y() - dip.y()
                     
                     // Calculate angle in degrees (0° = right, 90° = down, etc.)
                     val angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
@@ -127,9 +130,9 @@ class MediaPipeModule(reactContext: ReactApplicationContext) :
                             putDouble("x", (tip.x() * bitmap.width).toDouble())
                             putDouble("y", (tip.y() * bitmap.height).toDouble())
                         })
-                        putMap("base", Arguments.createMap().apply {
-                            putDouble("x", (base.x() * bitmap.width).toDouble())
-                            putDouble("y", (base.y() * bitmap.height).toDouble())
+                        putMap("dip", Arguments.createMap().apply {
+                            putDouble("x", (dip.x() * bitmap.width).toDouble())
+                            putDouble("y", (dip.y() * bitmap.height).toDouble())
                         })
                     }
                     fingersArray.pushMap(fingerMap)

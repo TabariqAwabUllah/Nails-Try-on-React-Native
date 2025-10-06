@@ -388,36 +388,50 @@ export const calculateDesignImageSection = (designedNailBounds, designImageDimen
 // Nail Direction Detection Functions
 export const nailDirectionUtils = {
   
-  // Method 1: Find the longest edge direction (Primary method)
-  getLongestEdgeDirection: (points) => {
-    if (!points || points.length < 2) return null;
-    
-    let maxDistance = 0;
-    let primaryVector = null;
-    let edgePoints = null;
-    
-    for (let i = 0; i < points.length; i++) {
-      const p1 = points[i];
-      const p2 = points[(i + 1) % points.length];
-      
-      const distance = Math.sqrt(
-        Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2)
-      );
-      
-      if (distance > maxDistance) {
-        maxDistance = distance;
-        primaryVector = {
-          x: p2.x - p1.x,
-          y: p2.y - p1.y
-        };
-        edgePoints = { start: p1, end: p2 };
+  // Method 1: Find the widest part direction (across the nail, not length)
+  // This looks for the SHORTEST axis (width), which gives us the perpendicular to nail direction
+  getWidthDirection: (points) => {
+    if (!points || points.length < 3) return null;
+
+    // Get bounding box
+    const bounds = polygonUtils.getBounds(points);
+    const centroid = polygonUtils.getCentroid(points);
+
+    // Try different angles and find which gives the smallest width
+    let minWidth = Infinity;
+    let bestAngle = 0;
+
+    for (let angle = 0; angle < Math.PI; angle += Math.PI / 36) { // Every 5 degrees
+      // For this angle, measure the width perpendicular to it
+      const perpAngle = angle + Math.PI / 2;
+      const perpVector = { x: Math.cos(perpAngle), y: Math.sin(perpAngle) };
+
+      // Project all points onto perpendicular axis
+      let minProj = Infinity;
+      let maxProj = -Infinity;
+
+      points.forEach(point => {
+        const proj = (point.x - centroid.x) * perpVector.x + (point.y - centroid.y) * perpVector.y;
+        minProj = Math.min(minProj, proj);
+        maxProj = Math.max(maxProj, proj);
+      });
+
+      const width = maxProj - minProj;
+
+      if (width < minWidth) {
+        minWidth = width;
+        bestAngle = angle;
       }
     }
-    
+
+    // Return the vector pointing in the direction of the nail (perpendicular to width)
     return {
-      vector: primaryVector,
-      length: maxDistance,
-      edgePoints: edgePoints
+      vector: {
+        x: Math.cos(bestAngle),
+        y: Math.sin(bestAngle)
+      },
+      angle: bestAngle,
+      width: minWidth
     };
   },
 
@@ -676,10 +690,10 @@ export const detectNailDirection = (nailPolygon, nailIndex = 0, nailType = 'unkn
       };
     }
 
-    // Method 1: Longest Edge
-    const longestEdge = nailDirectionUtils.getLongestEdgeDirection(nailPolygon);
-    const longestEdgeAngle = longestEdge ? nailDirectionUtils.vectorToAngle(longestEdge.vector) : 0;
-    const longestEdgeDirection = nailDirectionUtils.getDirectionWithConfidence(longestEdgeAngle);
+    // Method 1: Width Direction (perpendicular to narrowest axis)
+    const widthDir = nailDirectionUtils.getWidthDirection(nailPolygon);
+    const widthAngle = widthDir ? nailDirectionUtils.vectorToAngle(widthDir.vector) : 0;
+    const widthDirection = nailDirectionUtils.getDirectionWithConfidence(widthAngle);
 
     // Method 2: PCA
     const pca = nailDirectionUtils.getPCADirection(nailPolygon);
@@ -693,14 +707,14 @@ export const detectNailDirection = (nailPolygon, nailIndex = 0, nailType = 'unkn
 
     // Combine results - prioritize method with highest confidence
     const methods = {
-      longestEdge: { ...longestEdgeDirection, method: 'Longest Edge' },
+      widthBased: { ...widthDirection, method: 'Width-Based' },
       pca: { ...pcaDirection, method: 'PCA' },
       obb: { ...obbDirection, method: 'Oriented Bounding Box' }
     };
 
     // Find the method with highest confidence
-    let bestMethod = 'longestEdge';
-    let highestConfidence = methods.longestEdge.confidence;
+    let bestMethod = 'widthBased';
+    let highestConfidence = methods.widthBased.confidence;
     
     if (methods.pca.confidence > highestConfidence) {
       bestMethod = 'pca';
@@ -730,13 +744,13 @@ export const detectNailDirection = (nailPolygon, nailIndex = 0, nailType = 'unkn
     // console.log(`📐 Angle: ${finalResult.angle.toFixed(1)}° (${finalResult.distanceFromCardinal.toFixed(1)}° from cardinal)`);
     // console.log(`🏆 Best Method: ${finalResult.method}`);
     // console.log(`📊 All Methods:`);
-    // console.log(`   • Longest Edge: ${methods.longestEdge.direction} (${(methods.longestEdge.confidence * 100).toFixed(1)}%)`);
+    // console.log(`   • Width-Based: ${methods.widthBased.direction} (${(methods.widthBased.confidence * 100).toFixed(1)}%)`);
     // console.log(`   • PCA: ${methods.pca.direction} (${(methods.pca.confidence * 100).toFixed(1)}%)`);
     // console.log(`   • Oriented Box: ${methods.obb.direction} (${(methods.obb.confidence * 100).toFixed(1)}%)`);
 
     // Detect base and tip
     let baseAndTip = { base: null, tip: null, confidence: 0 };
-    const bestPrimaryVector = bestMethod === 'longestEdge' ? longestEdge?.vector :
+    const bestPrimaryVector = bestMethod === 'widthBased' ? widthDir?.vector :
                              bestMethod === 'pca' ? pca?.vector :
                              obb?.vector;
     

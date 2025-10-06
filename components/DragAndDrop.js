@@ -31,7 +31,8 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const scale = useSharedValue(1);
   const scaleX = useSharedValue(1);
   const scaleY = useSharedValue(1);
-  const rotation = useSharedValue(initialRotation); // Apply initial rotation from MediaPipe
+  // Convert degrees to radians for rotation
+  const rotation = useSharedValue((initialRotation * Math.PI) / 180);
 
   // Shared values for zoom overlay
   // const zoomOverlayOpacity = useSharedValue(0);
@@ -46,7 +47,7 @@ const DragAndDrop = ({ nailData, index, designImageDimensions, originalImageDime
   const savedScale = useSharedValue(1);
   const savedScaleX = useSharedValue(1);
   const savedScaleY = useSharedValue(1);
-  const savedRotation = useSharedValue(initialRotation); // Save initial rotation
+  const savedRotation = useSharedValue((initialRotation * Math.PI) / 180); // Save initial rotation in radians
 
   // Rotation control state
   const isRotating = useSharedValue(false);
