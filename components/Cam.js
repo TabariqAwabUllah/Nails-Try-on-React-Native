@@ -30,8 +30,8 @@ const Cam = ({showCamera=false}) => {
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
-  const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
-  // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
+  // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
+  const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
@@ -421,16 +421,56 @@ const designNailsXY = async (imagePath) => {
             return;
         }
 
-        const capturedNailAngles = capturedFingerData.hands[0].fingers.map((finger, index) => {
-            console.log(`  ✅ Nail ${index} (${finger.name}): ${finger.emoji} ${finger.direction} - Angle: ${finger.angle.toFixed(1)}°`);
-            return {
-                angle: finger.angle,
-                direction: finger.direction,
-                emoji: finger.emoji,
-                confidence: 1.0, // MediaPipe is highly accurate
-                name: finger.name
-            };
-        });
+        // Dynamically match MediaPipe fingers to Roboflow detected nails
+        console.log(`🔢 Roboflow detected ${nailPolygons.length} captured nails`);
+        console.log(`🔢 MediaPipe detected ${capturedFingerData.hands[0].fingers.length} fingers`);
+
+        let capturedNailAngles;
+
+        if (nailPolygons.length === 5) {
+            // All 5 fingers including thumb
+            console.log("✅ Using ALL 5 fingers (including thumb)");
+            capturedNailAngles = capturedFingerData.hands[0].fingers.map((finger, index) => {
+                console.log(`  ✅ Nail ${index} (${finger.name}): ${finger.emoji} ${finger.direction} - Angle: ${finger.angle.toFixed(1)}°`);
+                return {
+                    angle: finger.angle,
+                    direction: finger.direction,
+                    emoji: finger.emoji,
+                    confidence: 1.0,
+                    name: finger.name
+                };
+            });
+        } else if (nailPolygons.length === 4) {
+            // Only 4 fingers - SKIP THUMB
+            console.log("✅ Skipping thumb (only 4 nails detected)");
+            capturedNailAngles = capturedFingerData.hands[0].fingers
+                .filter(finger => finger.name !== 'thumb')
+                .map((finger, index) => {
+                    console.log(`  ✅ Nail ${index} (${finger.name}): ${finger.emoji} ${finger.direction} - Angle: ${finger.angle.toFixed(1)}°`);
+                    return {
+                        angle: finger.angle,
+                        direction: finger.direction,
+                        emoji: finger.emoji,
+                        confidence: 1.0,
+                        name: finger.name
+                    };
+                });
+        } else {
+            // Fallback: just use first N fingers based on detected nails count
+            console.log(`⚠️ Unusual nail count (${nailPolygons.length}), using first ${nailPolygons.length} fingers`);
+            capturedNailAngles = capturedFingerData.hands[0].fingers
+                .slice(0, nailPolygons.length)
+                .map((finger, index) => {
+                    console.log(`  ✅ Nail ${index} (${finger.name}): ${finger.emoji} ${finger.direction} - Angle: ${finger.angle.toFixed(1)}°`);
+                    return {
+                        angle: finger.angle,
+                        direction: finger.direction,
+                        emoji: finger.emoji,
+                        confidence: 1.0,
+                        name: finger.name
+                    };
+                });
+        }
 
         // Step 4: SIMPLE! Just rotate designed nails to match captured nail angles directly
         console.log("\n🔄 ===== SETTING DESIGNED NAIL ROTATIONS =====");
@@ -438,14 +478,16 @@ const designNailsXY = async (imagePath) => {
         console.log("✨ Just rotate each designed nail to match the captured nail angle directly!");
         console.log("Captured Nail Angles", capturedNailAngles)
         const rotations = capturedNailAngles.map((capturedNail, index) => {
-            console.log(`  🎨 Designed Nail ${index} (${capturedNail.name}): Rotate to ${capturedNail.angle.toFixed(1)}° ${capturedNail.emoji}`);
+            // Add 180° to flip the rotation (coordinate system correction)
+            const correctedAngle = capturedNail.angle + 180;
+            console.log(`  🎨 Designed Nail ${index} (${capturedNail.name}): Rotate to ${correctedAngle.toFixed(1)}° (original: ${capturedNail.angle.toFixed(1)}°) ${capturedNail.emoji}`);
 
             return {
                 fingerIndex: index,
                 fingerName: capturedNail.name,
                 capturedDirection: capturedNail.direction,
                 capturedAngle: capturedNail.angle,
-                rotationNeeded: capturedNail.angle  // Direct angle, not rotation difference!
+                rotationNeeded: correctedAngle  // Add 180° correction
             };
         });
 
