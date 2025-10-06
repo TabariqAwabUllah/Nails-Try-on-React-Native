@@ -4,7 +4,6 @@ import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
 import { detectFingerDirections, matchNailsToFingers } from '../api/MediaPipeAPI';
 import Svg, { Defs, ClipPath, Path, Rect, Polygon, RadialGradient, Stop, Circle } from 'react-native-svg';
-import Drag from './Drag';
 import RNFS from 'react-native-fs';
 import { processNailsToImages } from './NailImageExtractor';
 import { detectNailDirection, calculateAlignmentRotation, polygonUtils } from './NailMappingUtils';
@@ -31,10 +30,10 @@ const Cam = ({showCamera=false}) => {
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
-  const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
+  // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
-  // const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
+  const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
 
   const [originalImageDimensions, setOriginalImageDimensions] = useState({ width: 0, height: 0 });
   const [designImageDimensions, setDesignImageDimensions] = useState({ width: 0, height: 0 });
@@ -95,27 +94,6 @@ const Cam = ({showCamera=false}) => {
 
   const toggleDirectionsDisplay = () => {
       setShowDirections(!showDirections);
-      // console.log(`Directions display: ${!showDirections ? 'ON' : 'OFF'}`);
-      
-      // if (!showDirections && (capturedNailDirections.length > 0 || designedNailDirections.length > 0)) {
-      //   // console.log("\n📍 CURRENT NAIL DIRECTIONS:");
-      //   // console.log("   Legend: Emojis = Captured Nails 📷 | Letters = Designed Nails 🎨");
-        
-      //   if (capturedNailDirections.length > 0) {
-      //     // console.log("   📷 CAPTURED NAILS:");
-      //     capturedNailDirections.forEach((direction, index) => {
-      //       // console.log(`      Nail ${index}: ${direction.emoji} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
-      //     });
-      //   }
-        
-      //   if (designedNailDirections.length > 0) {
-      //     // console.log("   🎨 DESIGNED NAILS:");
-      //     designedNailDirections.forEach((direction, index) => {
-      //       const letter = getDirectionLetter(direction.direction);
-      //       // console.log(`      Nail ${index}: ${letter} ${direction.direction} (${(direction.confidence * 100).toFixed(1)}%)`);
-      //     });
-      //   }
-      // }
   };
 
   // Convert direction to letter for designed nails
@@ -727,101 +705,8 @@ const designNailsXY = async (imagePath) => {
                     opacity="0.8"d
                 />
             ))}
-
-            {/* Render designed nails as SVG images */}
-            {/* {designMode && extractedNailImages?.map?.((nailData, index) => {
-                if (!nailData?.capturedNailCenter) return null;
-
-                // Calculate nail size based on captured nail dimensions
-                let nailWidth, nailHeight;
-                if (nailData.capturedNailDimensions) {
-                    nailWidth = nailData.capturedNailDimensions.width * nailData.designScale;
-                    nailHeight = nailData.capturedNailDimensions.height * nailData.designScale;
-                } else {
-                    // Fallback size
-                    nailWidth = nailData.bounds.width * nailData.designScale;
-                    nailHeight = nailData.bounds.height * nailData.designScale;
-                }
-
-                // Position at center (subtract half width/height to center the image)
-                const x = nailData.capturedNailCenter.x - (nailWidth / 2);
-                const y = nailData.capturedNailCenter.y - (nailHeight / 2);
-
-                console.log(`🎯 SVG Nail ${index}:`, {
-                    center: nailData.capturedNailCenter,
-                    size: { width: nailWidth, height: nailHeight },
-                    position: { x, y }
-                });
-
-                return (
-                    <Polygon
-                        key={`designed-nail-${index}`}
-                        href={nailData.nailImageUri || nailData.sourceImage}
-                        x={x}
-                        y={y}
-                        width={nailWidth}
-                        height={nailHeight}
-                        preserveAspectRatio="none"
-                        opacity="0.9"
-                    />
-                );
-            })} */}
           </Svg>
           
-          {/* Direction indicators overlay */}
-          {/* {showDirections && capturedNailDirections.length > 0 && capturedNailDirections.map((direction, index) => {
-              if (nailPolygons[index]) {
-                  const bounds = {
-                      minX: Math.min(...nailPolygons[index].map(p => p?.x || 0)),
-                      minY: Math.min(...nailPolygons[index].map(p => p?.y || 0)),
-                      maxX: Math.max(...nailPolygons[index].map(p => p?.x || 0)),
-                      maxY: Math.max(...nailPolygons[index].map(p => p?.y || 0))
-                  };
-                  const centerX = (bounds.minX + bounds.maxX) / 2;
-                  const centerY = (bounds.minY + bounds.maxY) / 2;
-                  
-                  // Calculate proper display scaling considering resizeMode='contain'
-                  const screenWidth = 390;
-                  const screenHeight = 844;
-                  const imageAspectRatio = originalImageDimensions.width / originalImageDimensions.height;
-                  const screenAspectRatio = screenWidth / screenHeight;
-
-                  let displayWidth, displayHeight, offsetX = 0, offsetY = 0;
-
-                  if (imageAspectRatio > screenAspectRatio) {
-                    displayWidth = screenWidth;
-                    displayHeight = screenWidth / imageAspectRatio;
-                    offsetY = (screenHeight - displayHeight) / 2;
-                  } else {
-                    displayHeight = screenHeight;
-                    displayWidth = screenHeight * imageAspectRatio;
-                    offsetX = (screenWidth - displayWidth) / 2;
-                  }
-
-                  const scaleX = displayWidth / originalImageDimensions.width;
-                  const scaleY = displayHeight / originalImageDimensions.height;
-                  
-                  return (
-                      <View
-                          key={`direction-${index}`}
-                          style={[styles.directionOverlay,{
-                              left: centerX * scaleX + offsetX - 15,
-                              top: centerY * scaleY + offsetY - 15,
-
-                          }]}
-                      >
-                          <Text style={{
-                              color: 'white',
-                              fontSize: 16,
-                              fontWeight: 'bold'
-                          }}>
-                              {direction.emoji}
-                          </Text>
-                      </View>
-                  );
-              }
-              return null;
-          })} */}
           
 
           {/* Render draggable design nails outside SVG context */}
@@ -857,50 +742,12 @@ const designNailsXY = async (imagePath) => {
                 onDeselect={handleDeselectNail}
             />
           )})}
-
-          {/* Direction indicators for designed nails */}
-          {/* {showDirections && designMode && designedNailDirections.length > 0 && extractedNailImages?.map?.((nailData, index) => {
-              const direction = designedNailDirections[index];
-              if (direction && nailData?.capturedNailCenter) {
-                  const letter = getDirectionLetter(direction.direction);
-
-                  return (
-                      <View
-                          key={`designed-direction-${index}`}
-                          style={[styles.directionIndicator, {
-                            left: nailData.capturedNailCenter.x - 10,
-                            top: nailData.capturedNailCenter.y - 35,
-                            }]}
-                      >
-                          <Text style={{
-                              color: 'white',
-                              fontSize: 12,
-                              fontWeight: 'bold'
-                          }}>
-                              {letter}
-                          </Text>
-                      </View>
-                  );
-              }
-              return null;
-          })} */}
         </View>
     
           
         {/* Color selection buttons */}
         <View style={styles.colorContainer}>
             <Text style={styles.title}>Choose nail style:</Text>
-            {/* <View style={styles.colorRow}>
-                {colors.slice(0, 4).map((item, index) => (
-                    <TouchableOpacity 
-                        key={index}
-                        style={[styles.colorButton, {backgroundColor: item.color}]}
-                        onPress={() => applyColor(item.color)}
-                    >
-                        <Text style={styles.colorText}>{item.name}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View> */}
             <ScrollView horizontal={true}>
               <View style={styles.colorRow}>
                   {colors.map((item, index) => (
@@ -953,23 +800,6 @@ const designNailsXY = async (imagePath) => {
                   )}
               </View>
             </ScrollView>
-
-            {/* Display MediaPipe finger directions */}
-            {/* {showMediaPipeDirections && mediaPipeFingerData && (
-              <View style={styles.directionsPanel}>
-                <Text style={styles.directionTitle}>📍 Finger Directions:</Text>
-                {mediaPipeFingerData.hands.map((hand, handIndex) => (
-                  <View key={handIndex}>
-                    <Text style={styles.handLabel}>✋ {hand.handedness}</Text>
-                    {hand.fingers.map((finger, fingerIndex) => (
-                      <Text key={fingerIndex} style={styles.fingerInfo}>
-                        {finger.emoji} {finger.name}: {finger.direction}
-                      </Text>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            )} */}
         </View>
         
         <TouchableOpacity style={styles.capButton} onPress={()=>backToCamera()}>
