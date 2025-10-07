@@ -12,6 +12,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import DragAndDrop from './DragAndDrop';
 
 
+
 const Cam = ({showCamera=false}) => {
   const [hasPermission, setHasPermission] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,12 +29,12 @@ const Cam = ({showCamera=false}) => {
   const [processedDesigns, setProcessedDesigns] = useState([]);
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [designMode, setDesignMode] = useState(false);
-  // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
-  const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
+  
+  // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
-  // const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
+  const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
 
   const [originalImageDimensions, setOriginalImageDimensions] = useState({ width: 0, height: 0 });
   const [designImageDimensions, setDesignImageDimensions] = useState({ width: 0, height: 0 });
@@ -371,7 +372,7 @@ const designNailsXY = async (imagePath) => {
 
         // Step 2: Detect design nails with Roboflow
         const roboflowResponse = await imageDesignAPI(imagePath);
-        console.log("✅ Designed nails detected", roboflowResponse);
+        console.log("✅ Designed Roboflow response:", roboflowResponse);
 
         if (!roboflowResponse?.predictions?.length) {
             alert("No nail designs detected in image");
@@ -403,7 +404,7 @@ const designNailsXY = async (imagePath) => {
 
         // Dynamically match MediaPipe fingers to Roboflow detected nails
         console.log(`🔢 Roboflow detected ${nailPolygons.length} captured nails`);
-        console.log(`🔢 MediaPipe detected ${capturedFingerData.hands[0].fingers.length} fingers`);
+        console.log(`🔢 MediaPipe detected ${capturedFingerData} fingers`);
 
         let capturedNailAngles;
 
@@ -411,7 +412,7 @@ const designNailsXY = async (imagePath) => {
             // All 5 fingers including thumb
             console.log("✅ Using ALL 5 fingers (including thumb)");
             capturedNailAngles = capturedFingerData.hands[0].fingers.map((finger, index) => { //angles of captured nails
-                console.log(`  ✅ Nail ${index} (${finger.name}): ${finger.emoji} ${finger.direction} - Angle: ${finger.angle.toFixed(1)}°`);
+                console.log(`  ✅ Nail ${index} (${finger.name}): ${finger.emoji} ${finger.direction} - Angle: ${finger.angle.toFixed(2)}°`);
                 return {
                     angle: finger.angle,
                     direction: finger.direction,
@@ -457,9 +458,11 @@ const designNailsXY = async (imagePath) => {
         console.log("✨ NO NEED to calculate designed nail angles!");
         console.log("✨ Just rotate each designed nail to match the captured nail angle directly!");
         console.log("Captured Nail Angles", capturedNailAngles)
+        // console.log("Finger Direction Angles", capturedFingerData);
+
         const rotations = capturedNailAngles.map((capturedNail, index) => {
             // Add 180° to flip the rotation (coordinate system correction)
-            const correctedAngle = capturedNail.angle + 180;
+            const correctedAngle = capturedNail.angle +180;
             console.log(`  🎨 Designed Nail ${index} (${capturedNail.name}): Rotate to ${correctedAngle.toFixed(1)}° (original: ${capturedNail.angle.toFixed(1)}°) ${capturedNail.emoji}`);
 
             return {
@@ -469,7 +472,10 @@ const designNailsXY = async (imagePath) => {
                 capturedAngle: capturedNail.angle,
                 rotationNeeded: correctedAngle  // Add 180° correction
             };
+            
+            
         });
+        console.log("Rotations Angles NailTransforms", rotations);
 
         console.log("\n📐 DESIGNED NAILS WILL BE ROTATED TO:");
         rotations.forEach((rot) => {
@@ -715,8 +721,9 @@ const designNailsXY = async (imagePath) => {
           {/* {console.log("🖼️ RENDER CHECK - designMode:", designMode, "extractedNailImages count:", extractedNailImages?.length || 0)} */}
           {/* {designMode && extractedNailImages?.length > 0 && console.log("✅ Rendering", extractedNailImages.length, "extracted nails")} */}
           {designMode && extractedNailImages?.map?.((nailData, index) => {
-            console.log("nailData:", nailData);
-            console.log("originalImageDimensions:", originalImageDimensions);
+            console.log("extractedNailImages Angles", nailData);
+            
+            // console.log("originalImageDimensions:", originalImageDimensions);
 
             // Get rotation for this nail from matches
             const rotationDegrees = Array.isArray(nailTransforms) && nailTransforms[index]?.rotationNeeded
