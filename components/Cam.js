@@ -3,7 +3,7 @@ import { View, StyleSheet, Text, TouchableOpacity, ActivityIndicator, Image } fr
 import { Camera, useCameraDevices } from 'react-native-vision-camera';
 import { imageAPI, imageDesignAPI } from '../api/API';
 import Svg, { Defs, ClipPath, Path, Rect, Polygon, RadialGradient, Stop, Circle } from 'react-native-svg';
-import Drag from './Drag';
+// import Drag from './Drag';
 import RNFS from 'react-native-fs';
 import { processNailsToImages } from './NailImageExtractor';
 import { detectNailDirection, calculateAlignmentRotation, polygonUtils } from './NailMappingUtils';
