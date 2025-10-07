@@ -29,11 +29,11 @@ const Cam = ({showCamera=false}) => {
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [designMode, setDesignMode] = useState(false);
   // const designNailImage = 'https://i.pinimg.com/736x/dc/32/bd/dc32bdb85c1a984153fcc74cba0a55b8.jpg'
-  // const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
+  const designNailImage = 'https://i.pinimg.com/736x/ab/f7/af/abf7af5b23a4521a9793bd1dd34a6d91.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/71/48/40/714840b90665d14cc4f37ff0ae8e69a5.jpg'
   // const designNailImage = 'https://i.pinimg.com/1200x/e7/c6/d6/e7c6d6ff718998359ac6a9f9cad32aff.jpg'
   // const designNailImage = 'https://i.pinimg.com/736x/f7/45/67/f74567359b00fc84b01208066f3aaa42.jpg'
-  const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
+  // const designNailImage = 'https://i.pinimg.com/1200x/f6/79/ab/f679abfe839a12ee56a3ce9e01a38a77.jpg'
 
   const [originalImageDimensions, setOriginalImageDimensions] = useState({ width: 0, height: 0 });
   const [designImageDimensions, setDesignImageDimensions] = useState({ width: 0, height: 0 });
@@ -335,7 +335,7 @@ const Cam = ({showCamera=false}) => {
               width: roboflowResponse.image.width,
               height: roboflowResponse.image.height
           });
-          setResultImage(imagePath);
+          setResultImage(imagePath); //image after nail detection
           setColorImage(true);
           setApiCall(false); // Turn off loading after everything is set
           setCameraOn(false);
@@ -359,6 +359,8 @@ const designNailsXY = async (imagePath) => {
         if (imagePath.startsWith('http')) {
             console.log("📥 Downloading design image from URL...");
             const downloadDest = `${RNFS.CachesDirectoryPath}/design_nail_${Date.now()}.jpg`;
+            console.log("📥 Downloading to:", downloadDest);
+            
             await RNFS.downloadFile({
                 fromUrl: imagePath,
                 toFile: downloadDest
@@ -369,7 +371,7 @@ const designNailsXY = async (imagePath) => {
 
         // Step 2: Detect design nails with Roboflow
         const roboflowResponse = await imageDesignAPI(imagePath);
-        console.log("✅ Design nails detected");
+        console.log("✅ Designed nails detected", roboflowResponse);
 
         if (!roboflowResponse?.predictions?.length) {
             alert("No nail designs detected in image");
@@ -392,7 +394,7 @@ const designNailsXY = async (imagePath) => {
         // Get captured nail angles from MediaPipe (DIP-to-TIP angle = actual nail angle)
         console.log("\n📸 CAPTURED NAILS (from MediaPipe DIP→TIP):");
         const capturedFingerData = await detectFingerDirections(resultImage, 'CAPTURED IMAGE');
-        console.log("capturedFingerData", capturedFingerData);
+        console.log("Finger Direction", capturedFingerData);
         if (!capturedFingerData || capturedFingerData.hands.length === 0) {
             alert("No hands detected in captured image");
             setNailWait(false);
@@ -408,7 +410,7 @@ const designNailsXY = async (imagePath) => {
         if (nailPolygons.length === 5) {
             // All 5 fingers including thumb
             console.log("✅ Using ALL 5 fingers (including thumb)");
-            capturedNailAngles = capturedFingerData.hands[0].fingers.map((finger, index) => {
+            capturedNailAngles = capturedFingerData.hands[0].fingers.map((finger, index) => { //angles of captured nails
                 console.log(`  ✅ Nail ${index} (${finger.name}): ${finger.emoji} ${finger.direction} - Angle: ${finger.angle.toFixed(1)}°`);
                 return {
                     angle: finger.angle,

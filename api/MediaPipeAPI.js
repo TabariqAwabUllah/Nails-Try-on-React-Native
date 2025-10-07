@@ -10,7 +10,7 @@ const { MediaPipeModule } = NativeModules;
 export const detectFingerDirections = async (imagePath, imageLabel = 'Image') => {
     try {
         console.log(`🔍 Detecting finger directions with MediaPipe for: ${imageLabel}...`);
-        const result = await MediaPipeModule.detectFingerDirections(imagePath);
+        const result = await MediaPipeModule.detectFingerDirections(imagePath); // native module call
 
         // Log detailed results
         console.log(`✅ MediaPipe Detection Complete for ${imageLabel}!`);
